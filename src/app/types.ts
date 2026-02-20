@@ -9,12 +9,43 @@ export interface Category {
 export interface Transaction {
     id: number;
     amount: number;
-    type: 'income' | 'expense';
+    type: 'income' | 'expense' | 'transfer';
     categoryId: string;
-    date: string; // ISO string or local date string
+    accountId: string;
+    toAccountId?: string; // For transfers
+    date: string;
     time: string;
     note?: string;
+    status?: string; // e.g., '已完成'
 }
+
+export interface Account {
+    id: string;
+    name: string;
+    type: string; // e.g., '往來戶口', '現金', '存款'
+    number: string;
+    balance: number;
+    holderName?: string;
+    icon?: string;
+}
+
+export const INITIAL_ACCOUNTS: Account[] = [
+    {
+        id: "acc_1",
+        name: "往來戶口",
+        type: "CURRENT ACCOUNT",
+        number: "223012419",
+        balance: 50000,
+        holderName: "MIAO MENG TA"
+    },
+    {
+        id: "acc_2",
+        name: "現金",
+        type: "CASH",
+        number: "----",
+        balance: 5000
+    }
+];
 
 export const INITIAL_EXPENSE_CATEGORIES: Category[] = [
     { id: "food", label: "餐飲", icon: "🍱", color: "#FF6384", type: 'expense' },
