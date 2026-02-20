@@ -18,6 +18,28 @@ export default function Home() {
   const [selectedCat, setSelectedCat] = useState("food");
   const [totalToday, setTotalToday] = useState(0);
 
+  // 初始化：從 LocalStorage 讀取今日數據
+  useEffect(() => {
+    const savedData = localStorage.getItem("quick_money_data");
+    if (savedData) {
+      const { total, date } = JSON.parse(savedData);
+      const today = new Date().toLocaleDateString();
+      // 如果日期是今天，則載入總額，否則重置為 0
+      if (date === today) {
+        setTotalToday(total);
+      }
+    }
+  }, []);
+
+  // 監聽 totalToday 變化並儲存
+  useEffect(() => {
+    const data = {
+      total: totalToday,
+      date: new Date().toLocaleDateString()
+    };
+    localStorage.setItem("quick_money_data", JSON.stringify(data));
+  }, [totalToday]);
+
   // 處理按鈕輸入
   const handleKey = (key: string) => {
     if (key === "delete") {
@@ -25,6 +47,8 @@ export default function Home() {
     } else if (key === "C") {
       setAmount("0");
     } else {
+      // 限制金額長度防止溢出
+      if (amount.length > 9) return;
       setAmount((prev) => (prev === "0" ? key : prev + key));
     }
   };
@@ -32,16 +56,16 @@ export default function Home() {
   const handleSave = () => {
     const numAmount = parseInt(amount);
     if (numAmount === 0) return;
-    
-    // 這裡未來會接 LocalStorage 或 API
+
+    // 更新狀態，觸發 useEffect 進行持久化
     setTotalToday((prev) => prev + numAmount);
-    
+
     // 儲存成功的動畫效果與重置
     setAmount("0");
-    
-    // 給予簡單震動回饋 (如果裝置支援)
+
+    // 給予簡單震動回饋
     if (typeof window !== "undefined" && window.navigator.vibrate) {
-      window.navigator.vibrate(10);
+      window.navigator.vibrate([10]);
     }
   };
 
@@ -90,8 +114,8 @@ export default function Home() {
             {k === "delete" ? "⌫" : k}
           </button>
         ))}
-        <button 
-          className="key confirm" 
+        <button
+          className="key confirm"
           style={{ gridColumn: "span 3", height: "80px", fontSize: "1.2rem", color: "white" }}
           onClick={handleSave}
         >
