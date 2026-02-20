@@ -1,16 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Doughnut } from 'react-chartjs-2';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 const CATEGORIES = [
-  { id: "food", label: "餐飲", icon: "🍱" },
-  { id: "transport", label: "交通", icon: "🚌" },
-  { id: "shopping", label: "購物", icon: "🛍️" },
-  { id: "entertainment", label: "娛樂", icon: "🎮" },
-  { id: "daily", label: "日用", icon: "🧻" },
-  { id: "medical", label: "醫療", icon: "💊" },
-  { id: "housing", label: "房租", icon: "🏠" },
-  { id: "other", label: "其他", icon: "✨" },
+  { id: "food", label: "餐飲", icon: "🍱", color: "#FF6384" },
+  { id: "transport", label: "交通", icon: "🚌", color: "#36A2EB" },
+  { id: "shopping", label: "購物", icon: "🛍️", color: "#FFCE56" },
+  { id: "entertainment", label: "娛樂", icon: "🎮", color: "#4BC0C0" },
+  { id: "daily", label: "日用", icon: "🧻", color: "#9966FF" },
+  { id: "medical", label: "醫療", icon: "💊", color: "#FF9F40" },
+  { id: "housing", label: "房租", icon: "🏠", color: "#C9CBCF" },
+  { id: "other", label: "其他", icon: "✨", color: "#4D5360" },
 ];
 
 export default function Home() {
@@ -18,6 +22,7 @@ export default function Home() {
   const [selectedCat, setSelectedCat] = useState("food");
   const [totalToday, setTotalToday] = useState(0);
   const [history, setHistory] = useState<{ id: number, amount: number, category: string, time: string }[]>([]);
+  const [showStats, setShowStats] = useState(false);
 
   // 初始化：從 LocalStorage 讀取今日數據
   useEffect(() => {
@@ -51,6 +56,38 @@ export default function Home() {
     }));
     localStorage.setItem("quick_money_history", JSON.stringify(history));
   }, [totalToday, history]);
+
+  // 計算圖表數據
+  const chartData = useMemo(() => {
+    const dataMap: Record<string, number> = {};
+    history.forEach(item => {
+      dataMap[item.category] = (dataMap[item.category] || 0) + item.amount;
+    });
+
+    const labels = CATEGORIES.map(c => c.label);
+    const data = CATEGORIES.map(c => dataMap[c.id] || 0);
+    const colors = CATEGORIES.map(c => c.color);
+
+    return {
+      labels,
+      datasets: [
+        {
+          data,
+          backgroundColor: colors,
+          borderWidth: 0,
+          cutout: '70%',
+        },
+      ],
+    };
+  }, [history]);
+
+  const chartOptions = {
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: true }
+    },
+    maintainAspectRatio: false
+  };
 
   // 處理按鈕輸入
   const handleKey = (key: string) => {
@@ -87,10 +124,13 @@ export default function Home() {
 
   return (
     <main className="app-container">
-      {/* 頂部概覽 */}
+      {/* 頂部概覽 - 加入點擊開啟統計 */}
       <div className="header">
-        <div className="summary-card">
-          <p className="summary-label">今日累計支出</p>
+        <div className="summary-card" onClick={() => setShowStats(true)} style={{ cursor: "pointer" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p className="summary-label">今日累計支出</p>
+            <span style={{ fontSize: "1.2rem" }}>📊</span>
+          </div>
           <p className="summary-amount">${totalToday.toLocaleString()}</p>
         </div>
       </div>
