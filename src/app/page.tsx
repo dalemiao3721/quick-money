@@ -7,7 +7,7 @@ import { Category, Transaction, Account, INITIAL_EXPENSE_CATEGORIES, INITIAL_INC
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
-type AppScreen = 'main' | 'accounts' | 'tx_detail';
+type AppScreen = 'main' | 'tx_detail';
 
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
@@ -220,66 +220,6 @@ export default function Home() {
 
   // --- RENDERING SCREENS ---
 
-  if (currentScreen === 'accounts') {
-    return (
-      <div className="bank-view-container">
-        <header className="bank-header">
-          <button className="back-btn" onClick={() => setCurrentScreen('main')}>❮</button>
-          <h1>戶口資料</h1>
-        </header>
-
-        <div className="bank-card">
-          <div className="account-header-row" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <div style={{ width: '40px', height: '40px', background: '#fdf2f2', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#ff453a', fontSize: '1.2rem' }}>❌</div>
-            <div>
-              <div style={{ fontWeight: '600' }}>{selectedAccount.name}</div>
-              <div style={{ color: '#8e8e93', fontSize: '0.8rem' }}>{selectedAccount.number}</div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: '2rem' }}>
-            <div className="info-label">可用餘額</div>
-            <div style={{ fontSize: '2rem', fontWeight: '700', marginTop: '4px' }}>TWD {selectedAccount.balance.toLocaleString()}</div>
-          </div>
-        </div>
-
-        <div className="bank-action-grid" style={{ background: 'white', borderRadius: '20px', margin: '0 1.2rem' }}>
-          {[
-            { label: '開立定期存款', icon: '🏦' },
-            { label: '繳款及轉帳', icon: '🔄' },
-            { label: '外匯', icon: '💱' },
-            { label: '電子結單', icon: '📄' }
-          ].map((action, i) => (
-            <div key={i} className="bank-action-item">
-              <div className="bank-icon-circle">{action.icon}</div>
-              <div className="bank-icon-label">{action.label}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="bank-tab-group" style={{ marginTop: '1rem' }}>
-          <div className="bank-tab">概要</div>
-          <div className="bank-tab active">管理</div>
-        </div>
-
-        <div className="bank-card">
-          <div className="info-row">
-            <span className="info-label">戶口持有人</span>
-            <span className="info-value">{selectedAccount.holderName || "MIAO MENG TA"}</span>
-          </div>
-          <div className="info-row">
-            <span className="info-label">帳戶類型</span>
-            <span className="info-value">{selectedAccount.type}</span>
-          </div>
-          <div className="info-row">
-            <span className="info-label">幣別</span>
-            <span className="info-value">TWD</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (currentScreen === 'tx_detail' && selectedTx) {
     const cat = categories.find(c => c.id === selectedTx.categoryId);
     return (
@@ -329,7 +269,6 @@ export default function Home() {
   return (
     <main className="app-container" style={{ background: '#0a0a0c' }}>
       <button className="settings-fab" onClick={() => setShowMaintenance(true)} style={{ right: 'auto', left: '1.5rem' }}>⚙️</button>
-      <button className="settings-fab" onClick={() => setCurrentScreen('accounts')}>🏦</button>
 
       {/* 頂部概覽 */}
       <div className="header">
