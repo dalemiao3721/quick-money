@@ -107,18 +107,33 @@ body {
 }
 
 .category-mini-grid .category-item {
-  flex: 0 0 65px;
-  padding: 8px 0;
-  border-radius: 12px;
+  flex: 0 0 70px;
+  padding: 10px 4px;
+  border-radius: 14px;
   background: #2c2c2e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.category-mini-grid .category-item.selected {
+  background: rgba(0, 122, 255, 0.2);
+  border-color: var(--primary);
 }
 
 .category-mini-grid .category-label {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
+  color: #e5e5ea;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .category-mini-grid .category-icon {
-  font-size: 1.2rem;
+  font-size: 1.4rem;
 }
 
 /* Custom Keyboard */

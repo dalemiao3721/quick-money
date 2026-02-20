@@ -293,7 +293,6 @@ export default function Home() {
               key={cat.id}
               className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`}
               onClick={() => setSelectedCatId(cat.id)}
-              style={{ background: '#2c2c2e' }}
             >
               <span className="category-icon">{cat.icon}</span>
               <span className="category-label">{cat.label}</span>
