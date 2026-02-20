@@ -1,42 +1,162 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --primary: #007aff;
+  --bg: #0a0a0c;
+  --card-bg: #1c1c1e;
+  --text: #ffffff;
+  --text-secondary: #8e8e93;
+  --accent: #32d74b; /* 收入或成功色 */
+  --danger: #ff453a; /* 支出色 */
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-main);
+  overflow: hidden; /* 防止 PWA 橡皮筋效應 */
+  height: 100vh;
+  width: 100vw;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+input, button {
+  font-family: inherit;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 500px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* Header & Summary */
+.header {
+  padding: 2rem 1.5rem 1rem;
+  background: linear-gradient(180deg, rgba(0,122,255,0.1) 0%, rgba(10,10,12,0) 100%);
+}
+
+.summary-card {
+  background: var(--card-bg);
+  padding: 1.5rem;
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  margin-bottom: 1rem;
+}
+
+.summary-label {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.summary-amount {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+
+/* Numeric Input Area */
+.input-display {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 0 2rem;
+}
+
+.amount-preview {
+  font-size: 4rem;
+  font-weight: 800;
+  color: var(--danger);
+}
+
+.currency-symbol {
+  font-size: 2rem;
+  margin-right: 0.5rem;
+  color: var(--text-secondary);
+}
+
+/* Category Grid */
+.category-section {
+  padding: 1rem;
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.category-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 4px;
+  border-radius: 16px;
+  background: var(--card-bg);
+  border: 1px solid transparent;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.category-item:active {
+  transform: scale(0.92);
+  background: #2c2c2e;
+}
+
+.category-item.selected {
+  background: rgba(0,122,255,0.15);
+  border-color: var(--primary);
+}
+
+.category-icon {
+  font-size: 1.5rem;
+}
+
+.category-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* Custom Keyboard */
+.keyboard {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: #2c2c2e;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.key {
+  background: var(--bg);
+  height: 70px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  font-weight: 500;
+  transition: background 0.1s;
+}
+
+.key:active {
+  background: #1c1c1e;
+}
+
+.key.confirm {
+  background: var(--primary);
+  grid-column: span 1;
+}
+
+.key.delete {
+  font-size: 1.2rem;
 }
