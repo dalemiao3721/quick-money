@@ -5,9 +5,11 @@
   --text: #ffffff;
   --text-secondary: #8e8e93;
   --accent: #32d74b;
-  /* 收入或成功色 */
+  /* 成功/收入色 */
   --danger: #ff453a;
   /* 支出色 */
+  --income: #32d74b;
+  --expense: #ff453a;
   --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -69,25 +71,58 @@ button {
 }
 
 /* Numeric Input Area */
+.input-feedback-area {
+  background: var(--card-bg);
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .input-display {
-  flex: 1;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-end;
-  padding: 0 2rem;
+  justify-content: flex-end;
+  align-items: baseline;
+  margin-bottom: 0.8rem;
 }
 
 .amount-preview {
-  font-size: 4rem;
+  font-size: 2.5rem;
   font-weight: 800;
   color: var(--danger);
 }
 
 .currency-symbol {
-  font-size: 2rem;
+  font-size: 1.5rem;
   margin-right: 0.5rem;
   color: var(--text-secondary);
+}
+
+/* Category Mini Grid */
+.category-mini-grid {
+  display: flex;
+  overflow-x: auto;
+  gap: 10px;
+  padding-bottom: 5px;
+  scrollbar-width: none;
+  /* Hide scrollbar Firefox */
+}
+
+.category-mini-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.category-mini-grid .category-item {
+  flex: 0 0 65px;
+  padding: 8px 0;
+  border-radius: 12px;
+  background: #2c2c2e;
+}
+
+.category-mini-grid .category-label {
+  font-size: 0.65rem;
+}
+
+.category-mini-grid .category-icon {
+  font-size: 1.2rem;
 }
 
 /* Category Grid */
@@ -143,16 +178,16 @@ button {
 
 .key {
   background: var(--bg);
-  height: min-content;
+  height: 55px;
+  /* Reduced height */
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 500;
   transition: background 0.1s;
   border: none;
   color: var(--text);
-  padding: 1.2rem;
 }
 
 .key:active {
@@ -162,20 +197,18 @@ button {
 .key.confirm {
   background: var(--primary);
   grid-column: span 3;
-}
-
-.key.delete {
-  font-size: 1.2rem;
+  font-weight: 600;
+  font-size: 1rem;
 }
 
 /* History List Section */
 .history-section {
-  flex: 1.2;
+  flex: 1;
+  /* Take all available middle space */
   overflow-y: auto;
   padding: 1rem 1.5rem;
-  background: rgba(28, 28, 30, 0.5);
-  border-radius: 32px 32px 0 0;
-  margin-top: 1rem;
+  background: var(--bg);
+  margin-top: 0;
 }
 
 .history-header {
@@ -233,10 +266,62 @@ button {
   margin-top: 2px;
 }
 
-.history-item-amount {
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: var(--danger);
+.history-item-amount.expense {
+  color: var(--expense);
+}
+
+.history-item-amount.income {
+  color: var(--income);
+}
+
+/* Type Selector (Income/Expense Tabs) */
+.type-selector {
+  display: flex;
+  background: #1c1c1e;
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.type-tab {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.type-tab.active.expense {
+  background: var(--expense);
+  color: white;
+}
+
+.type-tab.active.income {
+  background: var(--income);
+  color: white;
+}
+
+/* Floating Action Button (Settings) */
+.settings-fab {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 100;
+  background: rgba(44, 44, 46, 0.8);
+  backdrop-filter: blur(5px);
+  border: none;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 @keyframes slideIn {
