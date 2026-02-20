@@ -18,14 +18,16 @@ const CATEGORIES = [
 ];
 
 export default function Home() {
+  const [isMounted, setIsMounted] = useState(false);
   const [amount, setAmount] = useState("0");
   const [selectedCat, setSelectedCat] = useState("food");
   const [totalToday, setTotalToday] = useState(0);
   const [history, setHistory] = useState<{ id: number, amount: number, category: string, time: string }[]>([]);
   const [showStats, setShowStats] = useState(false);
 
-  // 初始化：從 LocalStorage 讀取今日數據
+  // 初始化
   useEffect(() => {
+    setIsMounted(true);
     const savedData = localStorage.getItem("quick_money_data");
     const savedHistory = localStorage.getItem("quick_money_history");
     const today = new Date().toLocaleDateString();
@@ -35,13 +37,14 @@ export default function Home() {
       if (date === today) {
         setTotalToday(total);
       } else {
-        localStorage.removeItem("quick_money_history"); // 新的一天，清除歷史
+        localStorage.removeItem("quick_money_data");
+        localStorage.removeItem("quick_money_history");
+        return;
       }
     }
 
     if (savedHistory) {
       const historyData = JSON.parse(savedHistory);
-      // 檢查歷史第一筆是否是今天的，若不是則不載入
       if (historyData.length > 0 && new Date(historyData[0].id).toLocaleDateString() === today) {
         setHistory(historyData);
       }
@@ -50,12 +53,18 @@ export default function Home() {
 
   // 持久化儲存
   useEffect(() => {
+    if (!isMounted) return;
     localStorage.setItem("quick_money_data", JSON.stringify({
       total: totalToday,
       date: new Date().toLocaleDateString()
     }));
     localStorage.setItem("quick_money_history", JSON.stringify(history));
-  }, [totalToday, history]);
+  }, [totalToday, history, isMounted]);
+
+  // 防止 Hydration 錯誤：在組件掛載前不進行渲染或渲染佔位符
+  if (!isMounted) {
+    return <div style={{ background: "#0a0a0c", height: "100vh" }}></div>;
+  }
 
   // 計算圖表數據
   const chartData = useMemo(() => {
