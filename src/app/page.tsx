@@ -53,6 +53,10 @@ export default function Home() {
   const [reportPeriod, setReportPeriod] = useState<'day' | 'month' | 'year'>('month'); // category: month/year, trend: day/month
   const [reportDate, setReportDate] = useState(new Date());
 
+  // Account Detail & Privacy
+  const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
+  const [hideBalance, setHideBalance] = useState(false);
+
   // Forms for Maintenance
   const [catForm, setCatForm] = useState<{ show: boolean, type: 'income' | 'expense', label: string, icon: string, id?: string } | null>(null);
   const [accForm, setAccForm] = useState<{ show: boolean, name: string, type: string, number: string, balance: number, icon: string, id?: string } | null>(null);
@@ -405,32 +409,160 @@ export default function Home() {
         );
 
       case 'accounts':
-        return (
-          <div className="bank-view-container">
-            <header className="bank-header"><h1>我的帳戶平衡</h1></header>
-            <div style={{ padding: '0.8rem 0' }}>
-              {accounts.map(acc => (
-                <div key={acc.id} className="bank-card" onClick={() => { setSelectedAccountId(acc.id); setCurrentScreen('main'); }} style={{ cursor: 'pointer', border: selectedAccountId === acc.id ? '2px solid #007aff' : 'none', padding: '1.2rem', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {acc.icon && acc.icon.startsWith('data:image') ? (
-                      <img src={acc.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <span style={{ fontSize: '1.2rem' }}>{acc.icon || "🏦"}</span>
-                    )}
+        if (accountDetailId) {
+          const acc = accounts.find(a => a.id === accountDetailId);
+          if (!acc) { setAccountDetailId(null); return null; }
+
+          const accTxs = transactions.filter(t => t.accountId === acc.id);
+          const income = accTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+          const expense = accTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+
+          // Group by date
+          const groupedByDate: Record<string, Transaction[]> = {};
+          accTxs.forEach(t => {
+            if (!groupedByDate[t.date]) groupedByDate[t.date] = [];
+            groupedByDate[t.date].push(t);
+          });
+          const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a));
+
+          return (
+            <div className="bank-view-container" style={{ background: '#fff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '10px 1.2rem', background: '#fff' }}>
+                <button onClick={() => setAccountDetailId(null)} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❮</button>
+                <h2 style={{ flex: 1, textAlign: 'center', fontSize: '1.1rem' }}>{acc.name}</h2>
+                <div style={{ display: 'flex', gap: '15px' }}><span>⏳</span><span>⋯</span></div>
+              </div>
+
+              <div style={{ padding: '1.5rem 1.2rem', borderBottom: '8px solid #f2f2f7' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '1.5rem' }}>帳戶餘額</p>
+                    <p style={{ fontSize: '0.9rem', fontWeight: '700', color: '#000' }}>TWD</p>
+                    <p style={{ fontSize: '2.5rem', fontWeight: '800' }}>{acc.balance.toLocaleString()}</p>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '4px' }}>{acc.name}</h3>
-                        <p style={{ fontSize: '0.8rem', color: '#8e8e93' }}>{acc.type}</p>
-                      </div>
-                      <p style={{ fontSize: '1.3rem', fontWeight: '800', color: '#1c1c1e' }}>${acc.balance.toLocaleString()}</p>
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div>
+                      <p style={{ fontSize: '0.9rem', color: '#8e8e93' }}>收入</p>
+                      <p style={{ color: '#007aff', fontWeight: '700' }}>${income.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '0.9rem', color: '#8e8e93' }}>支出</p>
+                      <p style={{ color: '#ff453a', fontWeight: '700' }}>$-{expense.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '15px', borderBottom: '1px solid #f2f2f7' }}>
+                <span>◀</span>
+                <span style={{ margin: '0 20px', fontWeight: '600' }}>{new Date().getFullYear()}/{new Date().getMonth() + 1}/01 - {new Date().getFullYear()}/{new Date().getMonth() + 1}/28</span>
+                <span>▶</span>
+              </div>
+
+              <div style={{ padding: '10px 1.2rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#8e8e93' }}>
+                <span>項目 : {accTxs.length} 筆</span>
+                <span>結餘 : <span style={{ color: '#ff453a' }}>$-{(expense - income).toLocaleString()}</span></span>
+              </div>
+
+              <div style={{ padding: '0 0 80px' }}>
+                {sortedDates.map(date => (
+                  <div key={date}>
+                    <div style={{ padding: '12px 1.2rem', background: '#fff', fontSize: '1rem', fontWeight: '700', borderBottom: '1px solid #f2f2f7' }}>
+                      {date} {['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][new Date(date).getDay()]}
+                    </div>
+                    {groupedByDate[date].map(t => {
+                      const cat = categories.find(c => c.id === t.categoryId);
+                      return (
+                        <div key={t.id} className="history-item" style={{ padding: '12px 1.2rem', borderBottom: '1px solid #f2f2f7' }}>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#2c2c2e', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px', overflow: 'hidden' }}>
+                            {cat?.icon && cat.icon.startsWith('data:image') ? <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '1.2rem' }}>{cat?.icon}</span>}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontWeight: '700', fontSize: '1rem' }}>{cat?.label}</p>
+                            <p style={{ fontSize: '0.8rem', color: '#8e8e93' }}>{acc.name}</p>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <p style={{ fontWeight: '700', color: t.type === 'expense' ? '#ff453a' : '#007aff' }}>
+                              {t.type === 'expense' ? '$-' : '$'}{t.amount.toLocaleString()}
+                            </p>
+                            <p style={{ fontSize: '0.7rem', color: '#8e8e93' }}>1:1</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
-            <button className="bank-button-primary" onClick={() => setAccForm({ show: true, name: '', type: 'CASH', number: '', balance: 0, icon: '💵' })} style={{ background: '#007aff' }}>+ 新增帳戶</button>
+          );
+        }
+
+        const totalAssets = accounts.reduce((s, a) => s + (a.balance > 0 ? a.balance : 0), 0);
+        const totalLiabilities = accounts.reduce((s, a) => s + (a.balance < 0 ? Math.abs(a.balance) : 0), 0);
+        const netAssets = totalAssets - totalLiabilities;
+        const types = Array.from(new Set(accounts.map(a => a.type)));
+
+        return (
+          <div className="bank-view-container" style={{ background: '#f2f2f7' }}>
+            <div style={{ background: '#fff', padding: '1.5rem 1.2rem', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '20px', marginBottom: '1rem' }}>
+                <span>📊</span><span>+</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0.8rem' }}>
+                    <h2 style={{ fontSize: '1.2rem', fontWeight: '800' }}>淨資產</h2>
+                    <span onClick={() => setHideBalance(!hideBalance)} style={{ cursor: 'pointer', fontSize: '1.2rem' }}>{hideBalance ? '🙈' : '👁️'}</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '5px' }}>TWD</p>
+                  <p style={{ fontSize: '2.5rem', fontWeight: '800' }}>
+                    {hideBalance ? '******' : netAssets.toLocaleString()}
+                  </p>
+                </div>
+                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div>
+                    <p style={{ fontSize: '0.9rem', color: '#000', fontWeight: '600' }}>資產 ❔</p>
+                    <p style={{ color: '#007aff', fontWeight: '700' }}>${hideBalance ? '***' : totalAssets.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '0.9rem', color: '#000', fontWeight: '600' }}>負債 ❔</p>
+                    <p style={{ color: '#ff453a', fontWeight: '700' }}>$0</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ paddingBottom: '80px' }}>
+              {types.map(type => (
+                <div key={type} style={{ marginBottom: '10px' }}>
+                  <div style={{ padding: '10px 1.2rem', display: 'flex', justifyContent: 'space-between', background: '#fff', borderBottom: '1px solid #f2f2f7' }}>
+                    <span style={{ color: '#8e8e93', fontSize: '0.9rem' }}>{type === 'CASH' ? '現金' : type === 'SAVINGS' ? '銀行' : type}</span>
+                    <span style={{ color: '#007aff', fontSize: '0.9rem', fontWeight: '600' }}>TWD {accounts.filter(a => a.type === type).reduce((s, a) => s + a.balance, 0).toLocaleString()}</span>
+                  </div>
+                  {accounts.filter(a => a.type === type).map(acc => (
+                    <div key={acc.id} onClick={() => setAccountDetailId(acc.id)} style={{ background: '#fff', padding: '12px 1.2rem', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid #f2f2f7', cursor: 'pointer' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {acc.icon && acc.icon.startsWith('data:image') ? <img src={acc.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '1.2rem' }}>{acc.icon}</span>}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontWeight: '700', fontSize: '1.1rem' }}>{acc.name}</p>
+                        <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>初始資產：$0</p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontWeight: '700', fontSize: '1.1rem' }}>${hideBalance ? '***' : acc.balance.toLocaleString()}</p>
+                        <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>匯率 : 1:1</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <div style={{ padding: '1.5rem 1.2rem' }}>
+                <button onClick={() => setAccForm({ show: true, name: '', type: 'CASH', number: '', balance: 0, icon: '💵' })} style={{ width: '100%', padding: '12px', borderRadius: '24px', border: '2px solid #007aff', background: '#fff', color: '#007aff', fontWeight: '700', fontSize: '1rem' }}>
+                  + 新增帳戶
+                </button>
+              </div>
+            </div>
           </div>
         );
 
