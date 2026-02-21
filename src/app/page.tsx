@@ -27,6 +27,10 @@ export default function Home() {
   // Home Input States (NEW)
   const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0]);
   const [txNote, setTxNote] = useState("");
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+
+  // Drilldown State
+  const [drilldownCatId, setDrilldownCatId] = useState<string | null>(null);
 
   // Report States (V5 New)
   const [reportView, setReportView] = useState<'category' | 'trend'>('category');
@@ -161,30 +165,64 @@ export default function Home() {
     const numAmount = parseInt(amount);
     if (numAmount === 0 || !selectedCatId) return;
 
-    const now = new Date();
-    const newTx: Transaction = {
-      id: now.getTime(),
-      amount: numAmount,
-      type: activeType as any,
-      categoryId: selectedCatId,
-      accountId: selectedAccountId,
-      date: txDate, // 使用選取的日期
-      time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      note: txNote, // 使用輸入的備註
-      status: '已完成'
-    };
+    if (editingTx) {
+      // 更新現有交易
+      const oldAmount = editingTx.amount;
+      const oldType = editingTx.type;
 
-    setTransactions(prev => [newTx, ...prev]);
+      const updatedTx: Transaction = {
+        ...editingTx,
+        amount: numAmount,
+        type: activeType as any,
+        categoryId: selectedCatId,
+        accountId: selectedAccountId,
+        date: txDate,
+        note: txNote
+      };
 
-    setAccounts(prev => prev.map(a => {
-      if (a.id === selectedAccountId) {
-        return { ...a, balance: activeType === 'income' ? a.balance + numAmount : a.balance - numAmount };
-      }
-      return a;
-    }));
+      setTransactions(prev => prev.map(t => t.id === editingTx.id ? updatedTx : t));
+
+      // 修正帳戶餘額：先退回舊的，再扣除/增加新的
+      setAccounts(prev => prev.map(a => {
+        if (a.id === selectedAccountId) {
+          let newBalance = a.balance;
+          // 退回舊的
+          newBalance = oldType === 'income' ? newBalance - oldAmount : newBalance + oldAmount;
+          // 加上新的
+          newBalance = activeType === 'income' ? newBalance + numAmount : newBalance - numAmount;
+          return { ...a, balance: newBalance };
+        }
+        return a;
+      }));
+
+      setEditingTx(null);
+    } else {
+      // 新增交易
+      const now = new Date();
+      const newTx: Transaction = {
+        id: now.getTime(),
+        amount: numAmount,
+        type: activeType as any,
+        categoryId: selectedCatId,
+        accountId: selectedAccountId,
+        date: txDate,
+        time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        note: txNote,
+        status: '已完成'
+      };
+
+      setTransactions(prev => [newTx, ...prev]);
+      setAccounts(prev => prev.map(a => {
+        if (a.id === selectedAccountId) {
+          return { ...a, balance: activeType === 'income' ? a.balance + numAmount : a.balance - numAmount };
+        }
+        return a;
+      }));
+    }
 
     setAmount("0");
-    setTxNote(""); // 重置備註
+    setTxNote("");
+    setTxDate(new Date().toISOString().split('T')[0]);
     if (window.navigator.vibrate) window.navigator.vibrate([10]);
   };
 
@@ -243,6 +281,12 @@ export default function Home() {
           <div className="bank-view-container" style={{ height: 'calc(100vh - 65px)', overflowY: 'auto' }}>
             <div className="header" style={{ padding: '1.5rem 1.2rem' }}>
               <div className="summary-card" style={{ marginBottom: 0 }}>
+                {editingTx ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ background: '#ff9800', color: 'white', padding: '4px 12px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '800' }}>修改模式</span>
+                    <button onClick={() => { setEditingTx(null); setAmount("0"); setTxNote(""); }} style={{ color: 'white', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '12px', padding: '4px 12px', fontSize: '0.8rem' }}>取消</button>
+                  </div>
+                ) : null}
                 <p className="summary-label">{selectedAccount.name} 餘額</p>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                   <span style={{ fontSize: '1rem', color: '#8e8e93' }}>TWD</span>
@@ -322,7 +366,7 @@ export default function Home() {
                   <button key={k} className="key" style={{ background: '#fff', border: 'none', fontSize: '1.5rem', height: '65px', color: '#1c1c1e', fontWeight: '600' }} onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
                 ))}
                 <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)', borderRadius: '16px', fontSize: '1.2rem', color: '#fff', gridColumn: 'span 3', height: '60px', margin: '15px 1.2rem', fontWeight: '700', boxShadow: '0 8px 25px rgba(0,0,0,0.1)' }}>
-                  確認保存
+                  {editingTx ? "確認修改" : "確認保存"}
                 </button>
               </div>
             </div>
@@ -422,7 +466,7 @@ export default function Home() {
                     const amount = filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((s, t) => s + t.amount, 0);
                     if (amount === 0) return null;
                     return (
-                      <div key={c.id} className="report-item">
+                      <div key={c.id} className="report-item" onClick={() => setDrilldownCatId(c.id)} style={{ cursor: 'pointer' }}>
                         <div className="report-item-color-bar" style={{ background: c.color }}></div>
                         <div className="report-item-icon-circle">{c.icon}</div>
                         <div className="report-item-info">
@@ -454,7 +498,13 @@ export default function Home() {
                     const val = barData.datasets[0].data[idx] as number;
                     if (val === 0) return null;
                     return (
-                      <div key={label} className="report-item">
+                      <div key={label} className="report-item" onClick={() => {
+                        // For trend, we can also jump to daily detail or direct edit
+                        const dayTxs = filteredReportTransactions.filter(t => new Date(t.id).getDate() === parseInt(label));
+                        if (dayTxs.length > 0) {
+                          setDrilldownCatId(`day_${label}`);
+                        }
+                      }} style={{ cursor: 'pointer' }}>
                         <div className="report-item-color-bar" style={{ background: '#ffb74d' }}></div>
                         <div className="report-item-info">
                           <div className="report-item-label">{reportDate.getFullYear()}/{reportDate.getMonth() + 1}/{label.replace('日', '')}</div>
@@ -585,6 +635,56 @@ export default function Home() {
           <span className="tab-label">維護</span>
         </div>
       </nav>
+
+      {/* Drilldown Modal (Transactions for Category/Day) */}
+      {drilldownCatId && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ background: '#f2f2f7', padding: '1.5rem', maxHeight: '80vh', overflowY: 'auto', borderRadius: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.2rem' }}>交易明細</h2>
+              <button onClick={() => setDrilldownCatId(null)} style={{ border: 'none', background: 'none', fontSize: '1.5rem' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {filteredReportTransactions.filter(t =>
+                drilldownCatId.startsWith('day_')
+                  ? new Date(t.id).getDate() === parseInt(drilldownCatId.replace('day_', ''))
+                  : t.categoryId === drilldownCatId && t.type === reportMainType
+              ).length === 0 ? <p style={{ textAlign: 'center', color: '#8e8e93' }}>查無資料</p> : null}
+
+              {filteredReportTransactions.filter(t =>
+                drilldownCatId.startsWith('day_')
+                  ? new Date(t.id).getDate() === parseInt(drilldownCatId.replace('day_', ''))
+                  : t.categoryId === drilldownCatId && t.type === reportMainType
+              ).map(t => {
+                const cat = categories.find(c => c.id === t.categoryId);
+                return (
+                  <div key={t.id} className="history-item" onClick={() => {
+                    setEditingTx(t);
+                    setAmount(t.amount.toString());
+                    setTxDate(t.date);
+                    setTxNote(t.note || "");
+                    setActiveType(t.type as any);
+                    setSelectedCatId(t.categoryId);
+                    setSelectedAccountId(t.accountId);
+                    setCurrentScreen('main');
+                    setDrilldownCatId(null);
+                  }} style={{ background: '#fff', borderRadius: '16px', padding: '12px 16px', cursor: 'pointer' }}>
+                    <div className="history-item-icon" style={{ background: '#f2f2f7', width: '40px', height: '40px', borderRadius: '12px', fontSize: '1.2rem' }}>{cat?.icon || "❓"}</div>
+                    <div className="history-item-info">
+                      <div className="history-item-label" style={{ fontSize: '0.95rem', fontWeight: '600' }}>{cat?.label}</div>
+                      <div className="history-item-time" style={{ fontSize: '0.75rem', color: '#8e8e93' }}>{t.date} {t.note ? `· ${t.note}` : ''}</div>
+                    </div>
+                    <div className={`history-item-amount ${t.type}`} style={{ fontWeight: '700' }}>
+                      ${t.amount.toLocaleString()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 彈窗與表單 */}
       {catForm?.show && (
