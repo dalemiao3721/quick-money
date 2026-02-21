@@ -339,139 +339,149 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="category-mini-grid" style={{ padding: '0 1.2rem', marginBottom: '0.5rem', gap: '8px', background: 'transparent' }}>
-              {accounts.map(acc => (
-                <button
-                  key={acc.id}
-                  onClick={() => setSelectedAccountId(acc.id)}
-                  style={{
-                    flex: '0 0 auto', padding: '6px 14px', borderRadius: '18px',
-                    background: selectedAccountId === acc.id ? 'var(--primary)' : '#fff',
-                    border: '1px solid ' + (selectedAccountId === acc.id ? 'var(--primary)' : '#e5e5ea'),
-                    color: selectedAccountId === acc.id ? 'white' : '#1c1c1e',
-                    fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {acc.name}
-                </button>
-              ))}
-            </div>
-
-            {/* 移除歷史紀錄區域，騰出空間給備註與日期 */}
-
-            <div style={{ background: '#fff', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', boxShadow: '0 -8px 20px rgba(0,0,0,0.03)', padding: '1rem 1.2rem 0' }}>
-              <div className="type-selector" style={{ background: '#f2f2f7', marginBottom: '0.8rem', padding: '3px' }}>
-                <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} style={{ padding: '6px', fontSize: '0.9rem' }} onClick={() => setActiveType('expense')}>支出</button>
-                <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} style={{ padding: '6px', fontSize: '0.9rem' }} onClick={() => setActiveType('income')}>收入</button>
-              </div>
-
-              <div className="input-display" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '2.4rem', fontWeight: '800', color: activeType === 'income' ? 'var(--income)' : 'var(--expense)' }}>
-                  ${parseInt(amount).toLocaleString()}
-                </span>
-              </div>
-
-              {/* 日期與備註輸入 (Compact) */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '0.8rem' }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
-                  <span style={{ fontSize: '1rem', marginRight: '6px' }}>📅</span>
-                  <input
-                    type="date"
-                    value={txDate}
-                    onChange={(e) => setTxDate(e.target.value)}
-                    style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem', color: '#1c1c1e', fontWeight: '600', outline: 'none' }}
-                  />
-                </div>
-                <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
-                  <span style={{ fontSize: '1rem', marginRight: '6px' }}>📝</span>
-                  <input
-                    type="text"
-                    placeholder="備註..."
-                    value={txNote}
-                    onChange={(e) => setTxNote(e.target.value)}
-                    style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', color: '#1c1c1e', outline: 'none' }}
-                  />
+            <div style={{ background: '#fff', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', boxShadow: '0 -8px 20px rgba(0,0,0,0.03)', padding: '1rem 0 0', flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {/* 帳戶選擇列 (恢復並優化) */}
+              <div style={{ padding: '0 1.2rem', marginBottom: '1rem' }}>
+                <p style={{ fontSize: '0.75rem', color: '#8e8e93', marginBottom: '8px', fontWeight: '700' }}>選擇帳戶</p>
+                <div className="category-mini-grid" style={{ gap: '8px' }}>
+                  {accounts.map(acc => (
+                    <button
+                      key={acc.id}
+                      onClick={() => setSelectedAccountId(acc.id)}
+                      style={{
+                        flex: '0 0 auto',
+                        padding: '8px 16px',
+                        borderRadius: '12px',
+                        background: selectedAccountId === acc.id ? 'var(--primary)' : '#f2f2f7',
+                        border: 'none',
+                        color: selectedAccountId === acc.id ? 'white' : '#1c1c1e',
+                        fontSize: '0.85rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>{acc.icon && !acc.icon.startsWith('data') ? acc.icon : '💰'}</span>
+                      {acc.name}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="category-mini-grid" style={{ marginBottom: '0.8rem' }}>
-                {currentTypeCategories.map((cat) => (
-                  <button key={cat.id} className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`} style={{ flex: '0 0 60px' }} onClick={() => setSelectedCatId(cat.id)}>
-                    <span className="category-icon" style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {cat.icon && cat.icon.startsWith('data:image') ? (
-                        <img src={cat.icon} style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
-                      ) : (
-                        cat.icon
-                      )}
-                    </span>
-                    <span className="category-label" style={{ fontSize: '0.65rem' }}>{cat.label}</span>
+              <div style={{ padding: '0 1.2rem' }}>
+                <div className="type-selector" style={{ background: '#f2f2f7', marginBottom: '0.8rem', padding: '3px' }}>
+                  <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} style={{ padding: '6px', fontSize: '0.9rem' }} onClick={() => setActiveType('expense')}>支出</button>
+                  <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} style={{ padding: '6px', fontSize: '0.9rem' }} onClick={() => setActiveType('income')}>收入</button>
+                </div>
+
+                <div className="input-display" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '2.4rem', fontWeight: '800', color: activeType === 'income' ? 'var(--income)' : 'var(--expense)' }}>
+                    ${parseInt(amount).toLocaleString()}
+                  </span>
+                </div>
+
+                {/* 日期與備註輸入 */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '0.8rem' }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
+                    <span style={{ fontSize: '1rem', marginRight: '6px' }}>📅</span>
+                    <input
+                      type="date"
+                      value={txDate}
+                      onChange={(e) => setTxDate(e.target.value)}
+                      style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem', color: '#1c1c1e', fontWeight: '600', outline: 'none' }}
+                    />
+                  </div>
+                  <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
+                    <span style={{ fontSize: '1rem', marginRight: '6px' }}>📝</span>
+                    <input
+                      type="text"
+                      placeholder="備註..."
+                      value={txNote}
+                      onChange={(e) => setTxNote(e.target.value)}
+                      style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', color: '#1c1c1e', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="category-mini-grid" style={{ marginBottom: '0.8rem' }}>
+                  {currentTypeCategories.map((cat) => (
+                    <button key={cat.id} className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`} style={{ flex: '0 0 60px' }} onClick={() => setSelectedCatId(cat.id)}>
+                      <span className="category-icon" style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {cat.icon && cat.icon.startsWith('data:image') ? (
+                          <img src={cat.icon} style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
+                        ) : (
+                          cat.icon
+                        )}
+                      </span>
+                      <span className="category-label" style={{ fontSize: '0.65rem' }}>{cat.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="keyboard" style={{ margin: '0 -1.2rem', background: '#e5e5ea', gap: '1px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                  {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => (
+                    <button key={k} className="key" style={{ background: '#fff', border: 'none', fontSize: '1.2rem', height: '42px', color: '#1c1c1e', fontWeight: '600' }} onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
+                  ))}
+                  <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)', borderRadius: '12px', fontSize: '1rem', color: '#fff', gridColumn: 'span 3', height: '44px', margin: '8px 1.2rem', fontWeight: '700', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+                    {editingTx ? "確認修改" : "確認保存"}
                   </button>
-                ))}
-              </div>
-
-              <div className="keyboard" style={{ margin: '0 -1.2rem', background: '#e5e5ea', gap: '1px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => (
-                  <button key={k} className="key" style={{ background: '#fff', border: 'none', fontSize: '1.2rem', height: '42px', color: '#1c1c1e', fontWeight: '600' }} onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
-                ))}
-                <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)', borderRadius: '12px', fontSize: '1rem', color: '#fff', gridColumn: 'span 3', height: '44px', margin: '8px 1.2rem', fontWeight: '700', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-                  {editingTx ? "確認修改" : "確認保存"}
-                </button>
-              </div>
-
-              {/* 今日紀錄 (V2-Updates) */}
-              <div style={{ marginTop: '1.5rem', paddingBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h3 style={{ fontSize: '0.9rem', color: '#8e8e93', fontWeight: '700' }}>{txDate === new Date().toISOString().split('T')[0] ? '今日' : txDate} 紀錄</h3>
-                  <span style={{ fontSize: '0.75rem', color: '#007aff' }}>共 {transactions.filter(t => t.date === txDate).length} 筆</span>
                 </div>
 
-                {transactions.filter(t => t.date === txDate).length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '2rem 0', color: '#c7c7cc' }}>
-                    <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍃</p>
-                    <p style={{ fontSize: '0.85rem' }}>尚無記帳紀錄</p>
+                {/* 今日紀錄 */}
+                <div style={{ marginTop: '1.5rem', paddingBottom: '2rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h3 style={{ fontSize: '0.9rem', color: '#8e8e93', fontWeight: '700' }}>{txDate === new Date().toISOString().split('T')[0] ? '今日' : txDate} 紀錄</h3>
+                    <span style={{ fontSize: '0.75rem', color: '#007aff' }}>共 {transactions.filter(t => t.date === txDate).length} 筆</span>
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: '#f2f2f7', borderRadius: '16px', overflow: 'hidden' }}>
-                    {transactions.filter(t => t.date === txDate).map(t => {
-                      const cat = categories.find(c => c.id === t.categoryId);
-                      const acc = accounts.find(a => a.id === t.accountId);
-                      return (
-                        <div
-                          key={t.id}
-                          onClick={() => setEditingTx(t)}
-                          style={{ background: '#fff', padding: '12px 1rem', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
-                        >
-                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                            {cat?.icon && cat.icon.startsWith('data:image') ? (
-                              <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              <span style={{ fontSize: '1.1rem' }}>{cat?.icon}</span>
-                            )}
+
+                  {transactions.filter(t => t.date === txDate).length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem 0', color: '#c7c7cc' }}>
+                      <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍃</p>
+                      <p style={{ fontSize: '0.85rem' }}>尚無記帳紀錄</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: '#f2f2f7', borderRadius: '16px', overflow: 'hidden' }}>
+                      {transactions.filter(t => t.date === txDate).map(t => {
+                        const cat = categories.find(c => c.id === t.categoryId);
+                        const acc = accounts.find(a => a.id === t.accountId);
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => setEditingTx(t)}
+                            style={{ background: '#fff', padding: '12px 1rem', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                          >
+                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {cat?.icon && cat.icon.startsWith('data:image') ? (
+                                <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <span style={{ fontSize: '1.1rem' }}>{cat?.icon}</span>
+                              )}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontWeight: '700', fontSize: '0.95rem', marginBottom: '2px' }}>{cat?.label}</p>
+                              <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>
+                                {acc?.name} {t.note ? `· ${t.note}` : ''}
+                              </p>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <p style={{ fontWeight: '700', fontSize: '1rem', color: t.type === 'expense' ? '#ff453a' : '#007aff' }}>
+                                {t.type === 'expense' ? '-' : '+'}{t.amount.toLocaleString()}
+                              </p>
+                              <p style={{ fontSize: '0.65rem', color: '#c7c7cc' }}>{t.time}</p>
+                            </div>
                           </div>
-                          <div style={{ flex: 1 }}>
-                            <p style={{ fontWeight: '700', fontSize: '0.95rem', marginBottom: '2px' }}>{cat?.label}</p>
-                            <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>
-                              {acc?.name} {t.note ? `· ${t.note}` : ''}
-                            </p>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <p style={{ fontWeight: '700', fontSize: '1rem', color: t.type === 'expense' ? '#ff453a' : '#007aff' }}>
-                              {t.type === 'expense' ? '-' : '+'}{t.amount.toLocaleString()}
-                            </p>
-                            <p style={{ fontSize: '0.65rem', color: '#c7c7cc' }}>{t.time}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         );
-
       case 'accounts':
         if (accountDetailId) {
           const acc = accounts.find(a => a.id === accountDetailId);
