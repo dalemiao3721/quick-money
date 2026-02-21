@@ -9,6 +9,15 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 
 type AppScreen = 'main' | 'accounts' | 'reports' | 'maintenance' | 'tx_detail';
 
+const AVAILABLE_ICONS = [
+  "🍱", "🍔", "🍕", "🍜", "🍣", "🍛", "🥗", "🥪", "🍳", "🍰", "🍎", "☕", "🍺", "🥤",
+  "🚌", "🚕", "🚗", "🛵", "🚲", "🚄", "✈️", "🚢", "⛽", "🅿️",
+  "🛍️", "🎁", "🎮", "🎭", "🎬", "🎤", "🎨", "⚽", "🎾", "🏋️", "🧘",
+  "🏠", "🧻", "💊", "🧼", "👕", "👗", "💇", "🧹", "🧴", "🚿", "🛏️", "🛋️",
+  "💰", "🧧", "📈", "💼", "🏦", "💎", "💴", "💸", "💳", "💹",
+  "✨", "💡", "📱", "💻", "🐾", "📚", "🔔", "🛠️", "🔑", "📦"
+];
+
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('main');
@@ -693,7 +702,31 @@ export default function Home() {
             <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>{catForm.id ? '編輯分類' : '新增分類'}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <input type="text" placeholder="名稱" value={catForm.label} onChange={e => setCatForm({ ...catForm, label: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem' }} />
-              <input type="text" placeholder="圖示 (Emoji)" value={catForm.icon} onChange={e => setCatForm({ ...catForm, icon: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1.5rem', textAlign: 'center' }} />
+
+              <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px' }}>
+                <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px' }}>選取圖示</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', maxHeight: '180px', overflowY: 'auto', padding: '5px' }}>
+                  {AVAILABLE_ICONS.map(icon => (
+                    <button
+                      key={icon}
+                      onClick={() => setCatForm({ ...catForm, icon })}
+                      style={{
+                        fontSize: '1.5rem',
+                        background: catForm.icon === icon ? '#fff' : 'transparent',
+                        border: catForm.icon === icon ? '2px solid var(--primary)' : 'none',
+                        borderRadius: '12px',
+                        padding: '8px',
+                        cursor: 'pointer',
+                        boxShadow: catForm.icon === icon ? '0 4px 10px rgba(0,0,0,0.1)' : 'none'
+                      }}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <input type="text" placeholder="手動輸入 Emoji" value={catForm.icon} onChange={e => setCatForm({ ...catForm, icon: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem', textAlign: 'center' }} />
             </div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '2rem' }}>
               <button className="bank-button-primary" style={{ background: '#eee', color: '#333', margin: 0, flex: 1 }} onClick={() => setCatForm(null)}>取消</button>
