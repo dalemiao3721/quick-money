@@ -355,14 +355,20 @@ export default function Home() {
         return (
           <div className="bank-view-container" style={{ background: '#fff' }}>
             <div className="report-toggle-group">
-              <button className={`report-toggle-btn ${reportView === 'category' ? 'active' : ''}`} onClick={() => { setReportView('category'); setReportPeriod('month'); }}>分類報表</button>
+              <button className={`report-toggle-btn ${reportView === 'category' ? 'active' : ''}`} onClick={() => {
+                setReportView('category');
+                setReportPeriod('month');
+                if (reportMainType === 'balance') setReportMainType('expense'); // 分類報表不支援結餘，自動跳回支出
+              }}>分類報表</button>
               <button className={`report-toggle-btn ${reportView === 'trend' ? 'active' : ''}`} onClick={() => { setReportView('trend'); setReportPeriod('month'); }}>收支趨勢</button>
             </div>
 
             <div className="report-main-tabs">
               <button className={`report-main-tab ${reportMainType === 'expense' ? 'active' : ''}`} onClick={() => setReportMainType('expense')}>支出</button>
               <button className={`report-main-tab ${reportMainType === 'income' ? 'active' : ''}`} onClick={() => setReportMainType('income')}>收入</button>
-              <button className={`report-main-tab ${reportMainType === 'balance' ? 'active' : ''}`} onClick={() => setReportMainType('balance')}>結餘</button>
+              {reportView === 'trend' && (
+                <button className={`report-main-tab ${reportMainType === 'balance' ? 'active' : ''}`} onClick={() => setReportMainType('balance')}>結餘</button>
+              )}
             </div>
 
             <div className="sub-filter-row">
@@ -567,13 +573,13 @@ export default function Home() {
           <button className="floating-add-btn" onClick={() => setCurrentScreen('main')}>+</button>
         </div>
 
-        <div className="tab-item" onClick={() => alert('開發中...')}>
-          <span className="tab-icon">🧾</span>
-          <span className="tab-label">發票</span>
-        </div>
         <div className={`tab-item ${currentScreen === 'reports' ? 'active report' : ''}`} onClick={() => { setCurrentScreen('reports'); setSelectedTx(null); }}>
           <span className="tab-icon">📈</span>
           <span className="tab-label">報表</span>
+        </div>
+        <div className={`tab-item ${currentScreen === 'maintenance' ? 'active' : ''}`} onClick={() => { setCurrentScreen('maintenance'); setSelectedTx(null); }}>
+          <span className="tab-icon">⚙️</span>
+          <span className="tab-label">維護</span>
         </div>
       </nav>
 
