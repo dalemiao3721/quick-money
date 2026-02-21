@@ -1067,6 +1067,30 @@ export default function Home() {
               ))}
               <button className="bank-button-primary" onClick={() => setCatForm({ show: true, type: activeType as any, label: '', icon: '✨' })} style={{ marginTop: '1.5rem', background: '#333' }}>+ 新增分類</button>
             </div>
+
+            {/* 安全性設定 */}
+            <div className="bank-card" style={{ borderRadius: '20px' }}>
+              <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem' }}>🔐 安全性</h3>
+              <div className="info-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ fontWeight: '600', fontSize: '0.95rem' }}>螢幕鎖定密碼</p>
+                  <p style={{ fontSize: '0.75rem', color: '#ff9500', marginTop: '2px' }}>
+                    {typeof window !== 'undefined' && !localStorage.getItem('qm_pin_changed')
+                      ? '⚠️ 仍在使用預設密碼 0000，請立即修改'
+                      : '✅ 已設定個人密碼'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    // 動態 import 避免 SSR 問題
+                    import('./components/AppShell').then(m => m.triggerChangePin());
+                  }}
+                  style={{ padding: '8px 16px', background: '#007aff', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' }}
+                >
+                  修改密碼
+                </button>
+              </div>
+            </div>
           </div>
         );
 
