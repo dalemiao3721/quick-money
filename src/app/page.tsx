@@ -7,7 +7,7 @@ import { Category, Transaction, Account, INITIAL_EXPENSE_CATEGORIES, INITIAL_INC
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
-type AppScreen = 'main' | 'accounts' | 'reports' | 'maintenance' | 'tx_detail';
+type AppScreen = 'main' | 'accounts' | 'reports' | 'maintenance' | 'tx_detail' | 'report_detail';
 
 const EXPENSE_ICONS = [
   "🍱", "🍔", "🍕", "🍜", "🍣", "🍛", "🥗", "🥪", "🍳", "🍰", "🍎", "☕", "🍺", "🥤",
@@ -44,8 +44,9 @@ export default function Home() {
   const [txNote, setTxNote] = useState("");
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
-  // Drilldown State
-  const [drilldownCatId, setDrilldownCatId] = useState<string | null>(null);
+  // Account Detail & Privacy
+  const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
+  const [hideBalance, setHideBalance] = useState(false);
 
   // Report States (V5 New)
   const [reportView, setReportView] = useState<'category' | 'trend'>('category');
@@ -53,9 +54,8 @@ export default function Home() {
   const [reportPeriod, setReportPeriod] = useState<'day' | 'month' | 'year'>('month'); // category: month/year, trend: day/month
   const [reportDate, setReportDate] = useState(new Date());
 
-  // Account Detail & Privacy
-  const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
-  const [hideBalance, setHideBalance] = useState(false);
+  // Reporting/Detail States
+  const [reportDetailId, setReportDetailId] = useState<string | null>(null);
 
   // Forms for Maintenance
   const [catForm, setCatForm] = useState<{ show: boolean, type: 'income' | 'expense', label: string, icon: string, id?: string } | null>(null);
@@ -721,7 +721,7 @@ export default function Home() {
                     const amount = filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((s, t) => s + t.amount, 0);
                     if (amount === 0) return null;
                     return (
-                      <div key={c.id} className="report-item" onClick={() => setDrilldownCatId(c.id)} style={{ cursor: 'pointer' }}>
+                      <div key={c.id} className="report-item" onClick={() => { setReportDetailId(c.id); setCurrentScreen('report_detail'); }} style={{ cursor: 'pointer' }}>
                         <div className="report-item-color-bar" style={{ background: c.color }}></div>
                         <div className="report-item-icon-circle">{c.icon}</div>
                         <div className="report-item-info">
@@ -752,13 +752,18 @@ export default function Home() {
                   {barData.labels.map((label, idx) => {
                     const val = barData.datasets[0].data[idx] as number;
                     if (val === 0) return null;
+                    // Construct a date string for drilldown based on reportPeriod
+                    let detailId = '';
+                    if (reportPeriod === 'month') { // Daily trend
+                      detailId = `${reportDate.getFullYear()}-${(reportDate.getMonth() + 1).toString().padStart(2, '0')}-${label.replace('日', '').padStart(2, '0')}`;
+                    } else { // Monthly trend
+                      detailId = `${reportDate.getFullYear()}-${label.replace('月', '').padStart(2, '0')}`;
+                    }
+
                     return (
                       <div key={label} className="report-item" onClick={() => {
-                        // For trend, we can also jump to daily detail or direct edit
-                        const dayTxs = filteredReportTransactions.filter(t => new Date(t.id).getDate() === parseInt(label));
-                        if (dayTxs.length > 0) {
-                          setDrilldownCatId(`day_${label}`);
-                        }
+                        setReportDetailId(detailId);
+                        setCurrentScreen('report_detail');
                       }} style={{ cursor: 'pointer' }}>
                         <div className="report-item-color-bar" style={{ background: '#ffb74d' }}></div>
                         <div className="report-item-info">
@@ -772,6 +777,153 @@ export default function Home() {
               </>
             )}
             <div style={{ height: '100px' }}></div>
+          </div>
+        );
+
+      case 'report_detail':
+        if (!reportDetailId) return null;
+
+        let detailTransactions: Transaction[] = [];
+        let detailTitle = "交易明細";
+        let detailIcon = "📊";
+        let detailColor = '#1c1c1e';
+
+        // Determine if it's a category drilldown or a date drilldown
+        const isCategoryDrilldown = categories.some(c => c.id === reportDetailId);
+
+        if (isCategoryDrilldown) {
+          const category = categories.find(c => c.id === reportDetailId);
+          detailTitle = category?.label || "分類明細";
+          detailIcon = category?.icon || "❓";
+          detailColor = category?.color || '#1c1c1e';
+          detailTransactions = filteredReportTransactions.filter(t =>
+            t.categoryId === reportDetailId && t.type === reportMainType
+          );
+        } else {
+          // Date drilldown (from trend report)
+          const [year, month, day] = reportDetailId.split('-').map(Number);
+          if (day) { // Daily drilldown (YYYY-MM-DD)
+            detailTitle = `${year}年${month}月${day}日 明細`;
+            detailIcon = "📅";
+            detailTransactions = filteredReportTransactions.filter(t => {
+              const txDate = new Date(t.id);
+              return txDate.getFullYear() === year && txDate.getMonth() + 1 === month && txDate.getDate() === day;
+            });
+          } else { // Monthly drilldown (YYYY-MM)
+            detailTitle = `${year}年${month}月 明細`;
+            detailIcon = "🗓️";
+            detailTransactions = transactions.filter(t => {
+              const txDate = new Date(t.id);
+              return txDate.getFullYear() === year && txDate.getMonth() + 1 === month;
+            });
+          }
+          // For date drilldown, we show all types (income/expense)
+        }
+
+        const totalAmount = detailTransactions.reduce((sum, t) => {
+          return sum + (t.type === 'income' ? t.amount : -t.amount);
+        }, 0);
+
+        // Group transactions by date for display
+        const groupedDetailTxs: Record<string, Transaction[]> = {};
+        detailTransactions.forEach(t => {
+          if (!groupedDetailTxs[t.date]) groupedDetailTxs[t.date] = [];
+          groupedDetailTxs[t.date].push(t);
+        });
+        const sortedDetailDates = Object.keys(groupedDetailTxs).sort((a, b) => b.localeCompare(a));
+
+        return (
+          <div className="bank-view-container" style={{ background: '#f2f2f7' }}>
+            <div style={{ background: '#fff', padding: '10px 1.2rem', borderBottom: '1px solid #f2f2f7' }}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <button onClick={() => setCurrentScreen('reports')} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❮</button>
+                <h2 style={{ flex: 1, textAlign: 'center', fontSize: '1.1rem' }}>{detailTitle}</h2>
+                <div style={{ width: '24px' }}></div> {/* Placeholder for alignment */}
+              </div>
+            </div>
+
+            <div style={{ padding: '1.5rem 1.2rem', background: '#fff', borderBottom: '8px solid #f2f2f7' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '1rem' }}>
+                <div style={{ width: '45px', height: '45px', borderRadius: '50%', background: detailColor, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {detailIcon && detailIcon.startsWith('data:image') ? (
+                    <img src={detailIcon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: '1.4rem', color: '#fff' }}>{detailIcon}</span>
+                  )}
+                </div>
+                <div>
+                  <p style={{ fontSize: '0.9rem', color: '#8e8e93', marginBottom: '2px' }}>總計</p>
+                  <p style={{ fontSize: '1.8rem', fontWeight: '800', color: totalAmount < 0 ? '#ff453a' : '#007aff' }}>
+                    {totalAmount < 0 ? '-' : ''}${Math.abs(totalAmount).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#8e8e93' }}>
+                <span>項目 : {detailTransactions.length} 筆</span>
+                {isCategoryDrilldown && (
+                  <span>
+                    {reportMainType === 'expense' ? '總支出' : '總收入'} :
+                    <span style={{ color: reportMainType === 'expense' ? '#ff453a' : '#007aff', fontWeight: '600' }}>
+                      ${detailTransactions.reduce((s, t) => s + t.amount, 0).toLocaleString()}
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div style={{ padding: '0 0 80px' }}>
+              {sortedDetailDates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem 0', color: '#c7c7cc' }}>
+                  <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍃</p>
+                  <p style={{ fontSize: '0.85rem' }}>尚無記帳紀錄</p>
+                </div>
+              ) : (
+                sortedDetailDates.map(date => (
+                  <div key={date} style={{ marginBottom: '10px' }}>
+                    <div style={{ padding: '12px 1.2rem', background: '#fff', fontSize: '1rem', fontWeight: '700', borderBottom: '1px solid #f2f2f7' }}>
+                      {date.replace(/-/g, '/')} {['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][new Date(date).getDay()]}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: '#f2f2f7', borderRadius: '16px', overflow: 'hidden' }}>
+                      {groupedDetailTxs[date].map(t => {
+                        const cat = categories.find(c => c.id === t.categoryId);
+                        const acc = accounts.find(a => a.id === t.accountId);
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => {
+                              setEditingTx(t);
+                              setCurrentScreen('main');
+                              setReportDetailId(null); // Clear drilldown state
+                            }}
+                            style={{ background: '#fff', padding: '12px 1rem', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                          >
+                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {cat?.icon && cat.icon.startsWith('data:image') ? (
+                                <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <span style={{ fontSize: '1.1rem' }}>{cat?.icon}</span>
+                              )}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontWeight: '700', fontSize: '0.95rem', marginBottom: '2px' }}>{cat?.label}</p>
+                              <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>
+                                {acc?.name} {t.note ? `· ${t.note}` : ''}
+                              </p>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <p style={{ fontWeight: '700', fontSize: '1rem', color: t.type === 'expense' ? '#ff453a' : '#007aff' }}>
+                                {t.type === 'expense' ? '-' : '+'}{t.amount.toLocaleString()}
+                              </p>
+                              <p style={{ fontSize: '0.65rem', color: '#c7c7cc' }}>{t.time}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         );
 
@@ -915,49 +1067,6 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Drilldown Modal (Transactions for Category/Day) */}
-      {drilldownCatId && (
-        <div className="modal-overlay" style={{ zIndex: 1100 }}>
-          <div className="modal-content" style={{ background: '#f2f2f7', padding: '1.5rem', maxHeight: '80vh', overflowY: 'auto', borderRadius: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.2rem' }}>交易明細</h2>
-              <button onClick={() => setDrilldownCatId(null)} style={{ border: 'none', background: 'none', fontSize: '1.5rem' }}>✕</button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {filteredReportTransactions.filter(t =>
-                drilldownCatId.startsWith('day_')
-                  ? new Date(t.id).getDate() === parseInt(drilldownCatId.replace('day_', ''))
-                  : t.categoryId === drilldownCatId && t.type === reportMainType
-              ).length === 0 ? <p style={{ textAlign: 'center', color: '#8e8e93' }}>查無資料</p> : null}
-
-              {filteredReportTransactions.filter(t =>
-                drilldownCatId.startsWith('day_')
-                  ? new Date(t.id).getDate() === parseInt(drilldownCatId.replace('day_', ''))
-                  : t.categoryId === drilldownCatId && t.type === reportMainType
-              ).map(t => {
-                const cat = categories.find(c => c.id === t.categoryId);
-                return (
-                  <div key={t.id} className="history-item" onClick={() => {
-                    setEditingTx(t);
-                    setCurrentScreen('main');
-                    setDrilldownCatId(null);
-                  }} style={{ background: '#fff', borderRadius: '16px', padding: '12px 16px', cursor: 'pointer' }}>
-                    <div className="history-item-icon" style={{ background: '#f2f2f7', width: '40px', height: '40px', borderRadius: '12px', fontSize: '1.2rem' }}>{cat?.icon || "❓"}</div>
-                    <div className="history-item-info">
-                      <div className="history-item-label" style={{ fontSize: '0.95rem', fontWeight: '600' }}>{cat?.label}</div>
-                      <div className="history-item-time" style={{ fontSize: '0.75rem', color: '#8e8e93' }}>{t.date} {t.note ? `· ${t.note}` : ''}</div>
-                    </div>
-                    <div className={`history-item-amount ${t.type}`} style={{ fontWeight: '700' }}>
-                      ${t.amount.toLocaleString()}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 彈窗與表單 */}
       {catForm?.show && (
