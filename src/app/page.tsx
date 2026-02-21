@@ -434,12 +434,12 @@ export default function Home() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '8px 12px' }}>
-                        <span style={{ fontSize: '0.8rem', color: '#8e8e93', marginRight: '6px' }}>手續費</span>
+                        <span style={{ fontSize: '0.9rem', marginRight: '6px' }}>📅</span>
                         <input
-                          type="number"
-                          value={transferFee}
-                          onChange={(e) => setTransferFee(e.target.value)}
-                          style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem', fontWeight: '600', outline: 'none', textAlign: 'right' }}
+                          type="date"
+                          value={txDate}
+                          onChange={(e) => setTxDate(e.target.value)}
+                          style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', fontWeight: '600', outline: 'none', color: '#1c1c1e' }}
                         />
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '8px 12px' }}>
@@ -487,20 +487,22 @@ export default function Home() {
                   </>
                 )}
 
-                <div className="category-mini-grid" style={{ marginBottom: '0.8rem' }}>
-                  {currentTypeCategories.map((cat) => (
-                    <button key={cat.id} className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`} style={{ flex: '0 0 60px' }} onClick={() => setSelectedCatId(cat.id)}>
-                      <span className="category-icon" style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {cat.icon && cat.icon.startsWith('data:image') ? (
-                          <img src={cat.icon} style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
-                        ) : (
-                          cat.icon
-                        )}
-                      </span>
-                      <span className="category-label" style={{ fontSize: '0.65rem' }}>{cat.label}</span>
-                    </button>
-                  ))}
-                </div>
+                {activeType !== 'transfer' && (
+                  <div className="category-mini-grid" style={{ marginBottom: '0.8rem' }}>
+                    {currentTypeCategories.map((cat) => (
+                      <button key={cat.id} className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`} style={{ flex: '0 0 60px' }} onClick={() => setSelectedCatId(cat.id)}>
+                        <span className="category-icon" style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {cat.icon && cat.icon.startsWith('data:image') ? (
+                            <img src={cat.icon} style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
+                          ) : (
+                            cat.icon
+                          )}
+                        </span>
+                        <span className="category-label" style={{ fontSize: '0.65rem' }}>{cat.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="keyboard" style={{ margin: '0 -1.2rem', background: '#e5e5ea', gap: '1px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
                   {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => (
