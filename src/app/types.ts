@@ -32,18 +32,20 @@ export interface Account {
 export const INITIAL_ACCOUNTS: Account[] = [
     {
         id: "acc_1",
-        name: "往來戶口",
-        type: "CURRENT ACCOUNT",
+        name: "儲蓄",
+        type: "SAVINGS",
         number: "223012419",
         balance: 50000,
-        holderName: "MIAO MENG TA"
+        holderName: "MIAO MENG TA",
+        icon: "🏦"
     },
     {
         id: "acc_2",
         name: "現金",
         type: "CASH",
         number: "----",
-        balance: 5000
+        balance: 5000,
+        icon: "💵"
     }
 ];
 

@@ -22,6 +22,8 @@ const INCOME_ICONS = [
   "🥇", "🥈", "🥉", "🏆", "🎁", "🎉", "🔥", "🤝", "🏪", "🏧"
 ];
 
+const ACCOUNT_ICONS = ["💵", "🏦", "🪙", "💳", "💰", "🧧"];
+
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('main');
@@ -53,7 +55,7 @@ export default function Home() {
 
   // Forms for Maintenance
   const [catForm, setCatForm] = useState<{ show: boolean, type: 'income' | 'expense', label: string, icon: string, id?: string } | null>(null);
-  const [accForm, setAccForm] = useState<{ show: boolean, name: string, type: string, number: string, balance: number, id?: string } | null>(null);
+  const [accForm, setAccForm] = useState<{ show: boolean, name: string, type: string, number: string, balance: number, icon: string, id?: string } | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -259,14 +261,15 @@ export default function Home() {
   const handleSaveAccount = () => {
     if (!accForm || !accForm.name) return;
     if (accForm.id) {
-      setAccounts(prev => prev.map(a => a.id === accForm.id ? { ...a, name: accForm.name, type: accForm.type, number: accForm.number, balance: accForm.balance } : a));
+      setAccounts(prev => prev.map(a => a.id === accForm.id ? { ...a, name: accForm.name, type: accForm.type, number: accForm.number, balance: accForm.balance, icon: accForm.icon } : a));
     } else {
       const newAcc: Account = {
         id: "acc_" + Date.now(),
         name: accForm.name,
         type: accForm.type,
         number: accForm.number,
-        balance: accForm.balance
+        balance: accForm.balance,
+        icon: accForm.icon || "🏦"
       };
       setAccounts(prev => [...prev, newAcc]);
     }
@@ -293,17 +296,26 @@ export default function Home() {
         return (
           <div className="bank-view-container" style={{ height: 'calc(100vh - 65px)', overflowY: 'auto' }}>
             <div className="header" style={{ padding: '0.8rem 1.2rem' }}>
-              <div className="summary-card" style={{ marginBottom: 0, padding: '1rem' }}>
-                {editingTx ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ background: '#ff9800', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '800' }}>修改模式</span>
-                    <button onClick={() => { setEditingTx(null); setAmount("0"); setTxNote(""); }} style={{ color: 'white', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '8px', padding: '2px 8px', fontSize: '0.7rem' }}>取消</button>
+              <div className="summary-card" style={{ marginBottom: 0, padding: '1rem', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <div style={{ width: '45px', height: '45px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {selectedAccount.icon && selectedAccount.icon.startsWith('data:image') ? (
+                    <img src={selectedAccount.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: '1.4rem' }}>{selectedAccount.icon || "💰"}</span>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  {editingTx ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ background: '#ff9800', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '800' }}>修改模式</span>
+                      <button onClick={() => { setEditingTx(null); setAmount("0"); setTxNote(""); }} style={{ color: 'white', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '8px', padding: '2px 8px', fontSize: '0.7rem' }}>取消</button>
+                    </div>
+                  ) : null}
+                  <p className="summary-label" style={{ marginBottom: '2px', fontSize: '0.8rem' }}>{selectedAccount.name} 餘額</p>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#8e8e93' }}>TWD</span>
+                    <p className="summary-amount" style={{ fontSize: '1.6rem' }}>${selectedAccount.balance.toLocaleString()}</p>
                   </div>
-                ) : null}
-                <p className="summary-label" style={{ marginBottom: '2px', fontSize: '0.8rem' }}>{selectedAccount.name} 餘額</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#8e8e93' }}>TWD</span>
-                  <p className="summary-amount" style={{ fontSize: '1.6rem' }}>${selectedAccount.balance.toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -398,18 +410,27 @@ export default function Home() {
             <header className="bank-header"><h1>我的帳戶平衡</h1></header>
             <div style={{ padding: '0.8rem 0' }}>
               {accounts.map(acc => (
-                <div key={acc.id} className="bank-card" onClick={() => { setSelectedAccountId(acc.id); setCurrentScreen('main'); }} style={{ cursor: 'pointer', border: selectedAccountId === acc.id ? '2px solid #007aff' : 'none', padding: '1.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.2rem', marginBottom: '6px' }}>{acc.name}</h3>
-                      <p style={{ fontSize: '0.85rem', color: '#8e8e93' }}>{acc.type} · {acc.number}</p>
+                <div key={acc.id} className="bank-card" onClick={() => { setSelectedAccountId(acc.id); setCurrentScreen('main'); }} style={{ cursor: 'pointer', border: selectedAccountId === acc.id ? '2px solid #007aff' : 'none', padding: '1.2rem', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {acc.icon && acc.icon.startsWith('data:image') ? (
+                      <img src={acc.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '1.2rem' }}>{acc.icon || "🏦"}</span>
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <h3 style={{ fontSize: '1.1rem', marginBottom: '4px' }}>{acc.name}</h3>
+                        <p style={{ fontSize: '0.8rem', color: '#8e8e93' }}>{acc.type}</p>
+                      </div>
+                      <p style={{ fontSize: '1.3rem', fontWeight: '800', color: '#1c1c1e' }}>${acc.balance.toLocaleString()}</p>
                     </div>
-                    <p style={{ fontSize: '1.4rem', fontWeight: '800', color: '#1c1c1e' }}>${acc.balance.toLocaleString()}</p>
                   </div>
                 </div>
               ))}
             </div>
-            <button className="bank-button-primary" onClick={() => setAccForm({ show: true, name: '', type: 'SAVINGS', number: '', balance: 0 })} style={{ background: '#007aff' }}>+ 新增帳戶</button>
+            <button className="bank-button-primary" onClick={() => setAccForm({ show: true, name: '', type: 'CASH', number: '', balance: 0, icon: '💵' })} style={{ background: '#007aff' }}>+ 新增帳戶</button>
           </div>
         );
 
@@ -547,10 +568,19 @@ export default function Home() {
             <div className="bank-card" style={{ borderRadius: '20px' }}>
               <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem' }}>我的帳戶</h3>
               {accounts.map(acc => (
-                <div key={acc.id} className="info-row">
-                  <span>{acc.name}</span>
+                <div key={acc.id} className="info-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {acc.icon && acc.icon.startsWith('data:image') ? (
+                        <img src={acc.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        acc.icon
+                      )}
+                    </div>
+                    <span>{acc.name}</span>
+                  </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => setAccForm({ ...acc, show: true })} style={{ color: '#007aff', fontWeight: '600', border: 'none', background: 'none' }}>編輯</button>
+                    <button onClick={() => setAccForm({ ...acc, show: true, icon: acc.icon || "🏦" })} style={{ color: '#007aff', fontWeight: '600', border: 'none', background: 'none' }}>編輯</button>
                     <button onClick={() => setAccounts(p => p.filter(a => a.id !== acc.id))} style={{ color: '#ff453a', fontWeight: '600', border: 'none', background: 'none' }}>刪除</button>
                   </div>
                 </div>
@@ -798,8 +828,61 @@ export default function Home() {
               <input type="text" placeholder="帳戶名稱" value={accForm.name} onChange={e => setAccForm({ ...accForm, name: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem' }} />
               <input type="text" placeholder="類型 (例如: 現金, 往來戶口)" value={accForm.type} onChange={e => setAccForm({ ...accForm, type: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem' }} />
               <input type="number" placeholder="初始餘額" value={accForm.balance} onChange={e => setAccForm({ ...accForm, balance: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem' }} />
+
+              <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px' }}>
+                <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px' }}>選取預設圖示</p>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                  {ACCOUNT_ICONS.map(icon => (
+                    <button
+                      key={icon}
+                      onClick={() => setAccForm({ ...accForm, icon })}
+                      style={{
+                        fontSize: '1.5rem',
+                        background: accForm.icon === icon ? '#fff' : 'transparent',
+                        border: accForm.icon === icon ? '2px solid var(--primary)' : 'none',
+                        borderRadius: '12px',
+                        padding: '8px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px' }}>自定義帳戶圖片</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', justifyContent: 'center' }}>
+                  <div style={{ width: '45px', height: '45px', background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e5e5ea' }}>
+                    {accForm.icon && accForm.icon.startsWith('data:image') ? (
+                      <img src={accForm.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '1.2rem' }}>{accForm.icon || "🏦"}</span>
+                    )}
+                  </div>
+                  <label style={{ background: '#333', color: 'white', padding: '6px 12px', borderRadius: '10px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                    上傳
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            if (accForm) setAccForm({ ...accForm, icon: reader.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '2rem' }}>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem' }}>
               <button className="bank-button-primary" style={{ background: '#eee', color: '#333', margin: 0, flex: 1 }} onClick={() => setAccForm(null)}>取消</button>
               <button className="bank-button-primary" style={{ margin: 0, flex: 1 }} onClick={handleSaveAccount}>儲存</button>
             </div>
