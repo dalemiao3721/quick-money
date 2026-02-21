@@ -473,7 +473,22 @@ export default function Home() {
                     {groupedByDate[date].map(t => {
                       const cat = categories.find(c => c.id === t.categoryId);
                       return (
-                        <div key={t.id} className="history-item" style={{ padding: '12px 1.2rem', borderBottom: '1px solid #f2f2f7' }}>
+                        <div
+                          key={t.id}
+                          className="history-item"
+                          style={{ padding: '12px 1.2rem', borderBottom: '1px solid #f2f2f7', cursor: 'pointer' }}
+                          onClick={() => {
+                            setEditingTx(t);
+                            setAmount(t.amount.toString());
+                            setActiveType(t.type);
+                            setSelectedCatId(t.categoryId);
+                            setSelectedAccountId(t.accountId);
+                            setTxDate(t.date);
+                            setTxNote(t.note || "");
+                            setCurrentScreen('main');
+                            setAccountDetailId(null);
+                          }}
+                        >
                           <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#2c2c2e', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px', overflow: 'hidden' }}>
                             {cat?.icon && cat.icon.startsWith('data:image') ? <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '1.2rem' }}>{cat?.icon}</span>}
                           </div>
