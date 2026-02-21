@@ -90,6 +90,21 @@ export default function Home() {
     }
   }, [activeType, categories, selectedCatId]);
 
+  // Sync edit mode states
+  useEffect(() => {
+    if (editingTx) {
+      setAmount(editingTx.amount.toString());
+      setTxNote(editingTx.note || "");
+      // Ensure date format is YYYY-MM-DD for the input[type=date]
+      if (editingTx.date) {
+        setTxDate(editingTx.date.replace(/\//g, '-'));
+      }
+      setActiveType(editingTx.type);
+      setSelectedCatId(editingTx.categoryId);
+      setSelectedAccountId(editingTx.accountId);
+    }
+  }, [editingTx]);
+
   const currentTypeCategories = useMemo(() =>
     categories.filter(c => c.type === (activeType === 'transfer' ? 'expense' : activeType)),
     [categories, activeType]);
@@ -479,12 +494,6 @@ export default function Home() {
                           style={{ padding: '12px 1.2rem', borderBottom: '1px solid #f2f2f7', cursor: 'pointer' }}
                           onClick={() => {
                             setEditingTx(t);
-                            setAmount(t.amount.toString());
-                            setActiveType(t.type);
-                            setSelectedCatId(t.categoryId);
-                            setSelectedAccountId(t.accountId);
-                            setTxDate(t.date);
-                            setTxNote(t.note || "");
                             setCurrentScreen('main');
                             setAccountDetailId(null);
                           }}
@@ -872,12 +881,6 @@ export default function Home() {
                 return (
                   <div key={t.id} className="history-item" onClick={() => {
                     setEditingTx(t);
-                    setAmount(t.amount.toString());
-                    setTxDate(t.date);
-                    setTxNote(t.note || "");
-                    setActiveType(t.type as any);
-                    setSelectedCatId(t.categoryId);
-                    setSelectedAccountId(t.accountId);
                     setCurrentScreen('main');
                     setDrilldownCatId(null);
                   }} style={{ background: '#fff', borderRadius: '16px', padding: '12px 16px', cursor: 'pointer' }}>
