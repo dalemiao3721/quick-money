@@ -419,6 +419,55 @@ export default function Home() {
                   {editingTx ? "確認修改" : "確認保存"}
                 </button>
               </div>
+
+              {/* 今日紀錄 (V2-Updates) */}
+              <div style={{ marginTop: '1.5rem', paddingBottom: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3 style={{ fontSize: '0.9rem', color: '#8e8e93', fontWeight: '700' }}>{txDate === new Date().toISOString().split('T')[0] ? '今日' : txDate} 紀錄</h3>
+                  <span style={{ fontSize: '0.75rem', color: '#007aff' }}>共 {transactions.filter(t => t.date === txDate).length} 筆</span>
+                </div>
+
+                {transactions.filter(t => t.date === txDate).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2rem 0', color: '#c7c7cc' }}>
+                    <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍃</p>
+                    <p style={{ fontSize: '0.85rem' }}>尚無記帳紀錄</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: '#f2f2f7', borderRadius: '16px', overflow: 'hidden' }}>
+                    {transactions.filter(t => t.date === txDate).map(t => {
+                      const cat = categories.find(c => c.id === t.categoryId);
+                      const acc = accounts.find(a => a.id === t.accountId);
+                      return (
+                        <div
+                          key={t.id}
+                          onClick={() => setEditingTx(t)}
+                          style={{ background: '#fff', padding: '12px 1rem', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                        >
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            {cat?.icon && cat.icon.startsWith('data:image') ? (
+                              <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <span style={{ fontSize: '1.1rem' }}>{cat?.icon}</span>
+                            )}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontWeight: '700', fontSize: '0.95rem', marginBottom: '2px' }}>{cat?.label}</p>
+                            <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>
+                              {acc?.name} {t.note ? `· ${t.note}` : ''}
+                            </p>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <p style={{ fontWeight: '700', fontSize: '1rem', color: t.type === 'expense' ? '#ff453a' : '#007aff' }}>
+                              {t.type === 'expense' ? '-' : '+'}{t.amount.toLocaleString()}
+                            </p>
+                            <p style={{ fontSize: '0.65rem', color: '#c7c7cc' }}>{t.time}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );
