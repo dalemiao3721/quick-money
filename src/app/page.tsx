@@ -278,11 +278,39 @@ export default function Home() {
                 ))}
               </div>
 
-              <div className="keyboard" style={{ margin: '0 -1.2rem', background: '#fff' }}>
+              <div className="keyboard" style={{ margin: '0 -1.2rem', background: '#e5e5ea', gap: '1px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
                 {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => (
-                  <button key={k} className="key" style={{ background: '#fff', border: '1px solid #f2f2f7', fontSize: '1.4rem' }} onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
+                  <button
+                    key={k}
+                    className="key"
+                    style={{
+                      background: '#fff',
+                      border: 'none',
+                      fontSize: '1.5rem',
+                      height: '65px',
+                      color: '#1c1c1e', /* 強制顯示深色數字 */
+                      fontWeight: '600'
+                    }}
+                    onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}
+                  >
+                    {k}
+                  </button>
                 ))}
-                <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)', borderRadius: 0, fontSize: '1.1rem' }}>
+                <button
+                  className="key confirm"
+                  onClick={handleSave}
+                  style={{
+                    background: activeType === 'income' ? 'var(--income)' : 'var(--expense)',
+                    borderRadius: '16px',
+                    fontSize: '1.2rem',
+                    color: '#fff',
+                    gridColumn: 'span 3',
+                    height: '60px',
+                    margin: '15px 1.2rem', /* 預留邊距，解決「切掉」與「寬度不足」感 */
+                    fontWeight: '700',
+                    boxShadow: '0 8px 25px rgba(0,0,0,0.1)'
+                  }}
+                >
                   確認保存
                 </button>
               </div>

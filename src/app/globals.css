@@ -1,11 +1,13 @@
 :root {
   --primary: #007aff;
-  --bg: #0a0a0c;
-  --card-bg: #1c1c1e;
-  --text: #ffffff;
+  --bg: #f2f2f7;
+  /* 清爽底色 */
+  --card-bg: #ffffff;
+  /* 純白卡片 */
+  --text: #1c1c1e;
+  /* 深色文字 */
   --text-secondary: #8e8e93;
   --accent: #ff453a;
-  /* 橘紅色強調色 */
   --danger: #ff453a;
   --income: #32d74b;
   --expense: #ff453a;
@@ -36,25 +38,28 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  max-width: 500px;
+  width: 100%;
+  /* 擴張寬度，不再限制 500px */
   margin: 0 auto;
   position: relative;
+  background: var(--bg);
 }
 
 /* Header & Summary */
 .header {
-  padding: 2rem 1.5rem 1rem;
-  background: linear-gradient(180deg, rgba(0, 122, 255, 0.1) 0%, rgba(10, 10, 12, 0) 100%);
+  padding: 1.5rem 1.2rem 1rem;
+  background: white;
+  /* 移除藍色漸層，改為全白清爽背景 */
 }
 
 .summary-card {
-  background: var(--card-bg);
+  background: #1c1c1e;
+  /* 保持深色卡片作為核心視覺焦點 */
   padding: 1.5rem;
   border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
   margin-bottom: 1rem;
   color: white;
-  /* 修正對比度：深色背景配白色文字 */
 }
 
 .summary-label {
@@ -110,62 +115,69 @@ body {
 }
 
 .category-mini-grid .category-item {
-  flex: 0 0 70px;
-  padding: 10px 4px;
-  border-radius: 14px;
-  background: #2c2c2e;
+  flex: 0 0 75px;
+  padding: 12px 4px;
+  border-radius: 16px;
+  background: white;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  border: 1px solid transparent;
+  border: 1px solid #e5e5ea;
   transition: all 0.2s;
   cursor: pointer;
 }
 
 .category-mini-grid .category-item.selected {
-  background: rgba(0, 122, 255, 0.2);
+  background: rgba(0, 122, 255, 0.1);
   border-color: var(--primary);
 }
 
 .category-mini-grid .category-label {
-  font-size: 0.7rem;
-  color: #e5e5ea;
-  font-weight: 500;
+  font-size: 0.75rem;
+  color: #1c1c1e;
+  /* 始終保持深色，避免在淡色背景下隱形 */
+  font-weight: 600;
   white-space: nowrap;
 }
 
-.category-mini-grid .category-icon {
-  font-size: 1.4rem;
+.category-mini-grid .category-item.selected .category-label {
+  color: var(--primary);
+  /* 選中時使用藍色強調 */
 }
 
-/* Custom Keyboard */
+.category-mini-grid .category-icon {
+  font-size: 1.5rem;
+}
+
 .keyboard {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
-  background: #2c2c2e;
+  background: #e5e5ea;
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 .key {
-  background: var(--bg);
-  height: 55px;
+  background: white;
+  height: 60px;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   font-weight: 500;
   transition: background 0.1s;
   border: none;
-  color: var(--text);
+  color: #1c1c1e;
+  /* 修正數字不可見問題：設定為深黑色 */
 }
 
 .key.confirm {
   background: var(--primary);
+  color: white;
   grid-column: span 3;
-  font-weight: 600;
-  font-size: 1rem;
+  font-weight: 700;
+  font-size: 1.1rem;
 }
 
 /* History List Section */
