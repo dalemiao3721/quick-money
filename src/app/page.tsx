@@ -9,13 +9,17 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 
 type AppScreen = 'main' | 'accounts' | 'reports' | 'maintenance' | 'tx_detail';
 
-const AVAILABLE_ICONS = [
+const EXPENSE_ICONS = [
   "🍱", "🍔", "🍕", "🍜", "🍣", "🍛", "🥗", "🥪", "🍳", "🍰", "🍎", "☕", "🍺", "🥤",
   "🚌", "🚕", "🚗", "🛵", "🚲", "🚄", "✈️", "🚢", "⛽", "🅿️",
   "🛍️", "🎁", "🎮", "🎭", "🎬", "🎤", "🎨", "⚽", "🎾", "🏋️", "🧘",
   "🏠", "🧻", "💊", "🧼", "👕", "👗", "💇", "🧹", "🧴", "🚿", "🛏️", "🛋️",
-  "💰", "🧧", "📈", "💼", "🏦", "💎", "💴", "💸", "💳", "💹",
   "✨", "💡", "📱", "💻", "🐾", "📚", "🔔", "🛠️", "🔑", "📦"
+];
+
+const INCOME_ICONS = [
+  "💰", "🧧", "📈", "💼", "🏦", "💎", "💴", "💸", "💳", "💹",
+  "🥇", "🥈", "🥉", "🏆", "🎁", "🎉", "🔥", "🤝", "🏪", "🏧"
 ];
 
 export default function Home() {
@@ -364,7 +368,13 @@ export default function Home() {
               <div className="category-mini-grid" style={{ marginBottom: '0.8rem' }}>
                 {currentTypeCategories.map((cat) => (
                   <button key={cat.id} className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`} style={{ flex: '0 0 60px' }} onClick={() => setSelectedCatId(cat.id)}>
-                    <span className="category-icon" style={{ fontSize: '1.1rem' }}>{cat.icon}</span>
+                    <span className="category-icon" style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {cat.icon && cat.icon.startsWith('data:image') ? (
+                        <img src={cat.icon} style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
+                      ) : (
+                        cat.icon
+                      )}
+                    </span>
                     <span className="category-label" style={{ fontSize: '0.65rem' }}>{cat.label}</span>
                   </button>
                 ))}
@@ -554,8 +564,17 @@ export default function Home() {
                 <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} onClick={() => setActiveType('income')}>收入</button>
               </div>
               {categories.filter(c => c.type === (activeType === 'transfer' ? 'expense' : activeType)).map(c => (
-                <div key={c.id} className="info-row">
-                  <span>{c.icon} {c.label}</span>
+                <div key={c.id} className="info-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {c.icon && c.icon.startsWith('data:image') ? (
+                        <img src={c.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        c.icon
+                      )}
+                    </div>
+                    <span>{c.label}</span>
+                  </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={() => setCatForm({ ...c, show: true })} style={{ color: '#007aff', fontWeight: '600', border: 'none', background: 'none' }}>編輯</button>
                     <button onClick={() => setCategories(p => p.filter(cat => cat.id !== c.id))} style={{ color: '#ff453a', fontWeight: '600', border: 'none', background: 'none' }}>刪除</button>
@@ -578,7 +597,13 @@ export default function Home() {
             </header>
             <div className="bank-card" style={{ marginTop: '2rem', borderRadius: '32px', padding: '2rem 1.5rem' }}>
               <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>{cat?.icon}</div>
+                <div style={{ fontSize: '4rem', marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
+                  {cat?.icon && cat.icon.startsWith('data:image') ? (
+                    <img src={cat.icon} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    cat?.icon
+                  )}
+                </div>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: '600', color: '#8e8e93', marginBottom: '0.5rem' }}>{cat?.label}</h2>
                 <p style={{ color: selectedTx.type === 'expense' ? '#ff453a' : '#32d74b', fontSize: '2.8rem', fontWeight: '800' }}>
                   {selectedTx.type === 'expense' ? '-' : '+'}${selectedTx.amount.toLocaleString()}
@@ -704,9 +729,9 @@ export default function Home() {
               <input type="text" placeholder="名稱" value={catForm.label} onChange={e => setCatForm({ ...catForm, label: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem' }} />
 
               <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px' }}>
-                <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px' }}>選取圖示</p>
+                <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px' }}>選取推薦圖示 ({catForm.type === 'expense' ? '支出' : '收入'})</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', maxHeight: '180px', overflowY: 'auto', padding: '5px' }}>
-                  {AVAILABLE_ICONS.map(icon => (
+                  {(catForm.type === 'expense' ? EXPENSE_ICONS : INCOME_ICONS).map(icon => (
                     <button
                       key={icon}
                       onClick={() => setCatForm({ ...catForm, icon })}
@@ -726,7 +751,36 @@ export default function Home() {
                 </div>
               </div>
 
-              <input type="text" placeholder="手動輸入 Emoji" value={catForm.icon} onChange={e => setCatForm({ ...catForm, icon: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem', textAlign: 'center' }} />
+              <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px' }}>自定義圖片圖示</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', justifyContent: 'center' }}>
+                  <div style={{ width: '50px', height: '50px', background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '2px solid #e5e5ea' }}>
+                    {catForm.icon && catForm.icon.startsWith('data:image') ? (
+                      <img src={catForm.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '1.5rem' }}>{catForm.icon}</span>
+                    )}
+                  </div>
+                  <label style={{ background: 'var(--primary)', color: 'white', padding: '8px 16px', borderRadius: '12px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: '600' }}>
+                    上傳圖片
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            if (catForm) setCatForm({ ...catForm, icon: reader.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '2rem' }}>
               <button className="bank-button-primary" style={{ background: '#eee', color: '#333', margin: 0, flex: 1 }} onClick={() => setCatForm(null)}>取消</button>
