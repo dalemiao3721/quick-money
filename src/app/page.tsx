@@ -279,34 +279,34 @@ export default function Home() {
       case 'main':
         return (
           <div className="bank-view-container" style={{ height: 'calc(100vh - 65px)', overflowY: 'auto' }}>
-            <div className="header" style={{ padding: '1.5rem 1.2rem' }}>
-              <div className="summary-card" style={{ marginBottom: 0 }}>
+            <div className="header" style={{ padding: '0.8rem 1.2rem' }}>
+              <div className="summary-card" style={{ marginBottom: 0, padding: '1rem' }}>
                 {editingTx ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ background: '#ff9800', color: 'white', padding: '4px 12px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '800' }}>修改模式</span>
-                    <button onClick={() => { setEditingTx(null); setAmount("0"); setTxNote(""); }} style={{ color: 'white', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '12px', padding: '4px 12px', fontSize: '0.8rem' }}>取消</button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ background: '#ff9800', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '800' }}>修改模式</span>
+                    <button onClick={() => { setEditingTx(null); setAmount("0"); setTxNote(""); }} style={{ color: 'white', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '8px', padding: '2px 8px', fontSize: '0.7rem' }}>取消</button>
                   </div>
                 ) : null}
-                <p className="summary-label">{selectedAccount.name} 餘額</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ fontSize: '1rem', color: '#8e8e93' }}>TWD</span>
-                  <p className="summary-amount">${selectedAccount.balance.toLocaleString()}</p>
+                <p className="summary-label" style={{ marginBottom: '2px', fontSize: '0.8rem' }}>{selectedAccount.name} 餘額</p>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#8e8e93' }}>TWD</span>
+                  <p className="summary-amount" style={{ fontSize: '1.6rem' }}>${selectedAccount.balance.toLocaleString()}</p>
                 </div>
               </div>
             </div>
 
-            <div className="category-mini-grid" style={{ padding: '0 1.2rem', marginBottom: '1.5rem', gap: '12px', background: 'transparent' }}>
+            <div className="category-mini-grid" style={{ padding: '0 1.2rem', marginBottom: '0.5rem', gap: '8px', background: 'transparent' }}>
               {accounts.map(acc => (
                 <button
                   key={acc.id}
                   onClick={() => setSelectedAccountId(acc.id)}
                   style={{
-                    flex: '0 0 auto', padding: '10px 20px', borderRadius: '24px',
+                    flex: '0 0 auto', padding: '6px 14px', borderRadius: '18px',
                     background: selectedAccountId === acc.id ? 'var(--primary)' : '#fff',
                     border: '1px solid ' + (selectedAccountId === acc.id ? 'var(--primary)' : '#e5e5ea'),
                     color: selectedAccountId === acc.id ? 'white' : '#1c1c1e',
-                    fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer',
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
+                    fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
                     transition: 'all 0.2s'
                   }}
                 >
@@ -317,55 +317,55 @@ export default function Home() {
 
             {/* 移除歷史紀錄區域，騰出空間給備註與日期 */}
 
-            <div style={{ background: '#fff', borderTopLeftRadius: '32px', borderTopRightRadius: '32px', boxShadow: '0 -10px 30px rgba(0,0,0,0.05)', padding: '1.5rem 1.2rem 0' }}>
-              <div className="type-selector" style={{ background: '#f2f2f7', marginBottom: '1.2rem' }}>
-                <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} onClick={() => setActiveType('expense')}>支出</button>
-                <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} onClick={() => setActiveType('income')}>收入</button>
+            <div style={{ background: '#fff', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', boxShadow: '0 -8px 20px rgba(0,0,0,0.03)', padding: '1rem 1.2rem 0' }}>
+              <div className="type-selector" style={{ background: '#f2f2f7', marginBottom: '0.8rem', padding: '3px' }}>
+                <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} style={{ padding: '6px', fontSize: '0.9rem' }} onClick={() => setActiveType('expense')}>支出</button>
+                <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} style={{ padding: '6px', fontSize: '0.9rem' }} onClick={() => setActiveType('income')}>收入</button>
               </div>
 
-              <div className="input-display" style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                <span style={{ fontSize: '3.5rem', fontWeight: '800', color: activeType === 'income' ? 'var(--income)' : 'var(--expense)' }}>
+              <div className="input-display" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '2.4rem', fontWeight: '800', color: activeType === 'income' ? 'var(--income)' : 'var(--expense)' }}>
                   ${parseInt(amount).toLocaleString()}
                 </span>
               </div>
 
-              {/* 日期與備註輸入 (NEW) */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '14px', padding: '8px 15px' }}>
-                  <span style={{ fontSize: '1.2rem', marginRight: '10px' }}>📅</span>
+              {/* 日期與備註輸入 (Compact) */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '0.8rem' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
+                  <span style={{ fontSize: '1rem', marginRight: '6px' }}>📅</span>
                   <input
                     type="date"
                     value={txDate}
                     onChange={(e) => setTxDate(e.target.value)}
-                    style={{ border: 'none', background: 'transparent', flex: 1, fontSize: '1rem', color: '#1c1c1e', fontWeight: '600', outline: 'none' }}
+                    style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem', color: '#1c1c1e', fontWeight: '600', outline: 'none' }}
                   />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '14px', padding: '8px 15px' }}>
-                  <span style={{ fontSize: '1.2rem', marginRight: '10px' }}>📝</span>
+                <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
+                  <span style={{ fontSize: '1rem', marginRight: '6px' }}>📝</span>
                   <input
                     type="text"
-                    placeholder="點擊輸入備註..."
+                    placeholder="備註..."
                     value={txNote}
                     onChange={(e) => setTxNote(e.target.value)}
-                    style={{ border: 'none', background: 'transparent', flex: 1, fontSize: '0.95rem', color: '#1c1c1e', outline: 'none' }}
+                    style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', color: '#1c1c1e', outline: 'none' }}
                   />
                 </div>
               </div>
 
-              <div className="category-mini-grid" style={{ marginBottom: '1.5rem' }}>
+              <div className="category-mini-grid" style={{ marginBottom: '0.8rem' }}>
                 {currentTypeCategories.map((cat) => (
-                  <button key={cat.id} className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`} onClick={() => setSelectedCatId(cat.id)}>
-                    <span className="category-icon">{cat.icon}</span>
-                    <span className="category-label">{cat.label}</span>
+                  <button key={cat.id} className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`} style={{ flex: '0 0 60px' }} onClick={() => setSelectedCatId(cat.id)}>
+                    <span className="category-icon" style={{ fontSize: '1.1rem' }}>{cat.icon}</span>
+                    <span className="category-label" style={{ fontSize: '0.65rem' }}>{cat.label}</span>
                   </button>
                 ))}
               </div>
 
               <div className="keyboard" style={{ margin: '0 -1.2rem', background: '#e5e5ea', gap: '1px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
                 {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => (
-                  <button key={k} className="key" style={{ background: '#fff', border: 'none', fontSize: '1.5rem', height: '65px', color: '#1c1c1e', fontWeight: '600' }} onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
+                  <button key={k} className="key" style={{ background: '#fff', border: 'none', fontSize: '1.2rem', height: '42px', color: '#1c1c1e', fontWeight: '600' }} onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
                 ))}
-                <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)', borderRadius: '16px', fontSize: '1.2rem', color: '#fff', gridColumn: 'span 3', height: '60px', margin: '15px 1.2rem', fontWeight: '700', boxShadow: '0 8px 25px rgba(0,0,0,0.1)' }}>
+                <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)', borderRadius: '12px', fontSize: '1rem', color: '#fff', gridColumn: 'span 3', height: '44px', margin: '8px 1.2rem', fontWeight: '700', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
                   {editingTx ? "確認修改" : "確認保存"}
                 </button>
               </div>

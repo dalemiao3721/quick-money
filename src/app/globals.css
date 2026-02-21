@@ -69,7 +69,7 @@ body {
 }
 
 .summary-amount {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   letter-spacing: -1px;
   color: white;
@@ -115,14 +115,14 @@ body {
 }
 
 .category-mini-grid .category-item {
-  flex: 0 0 75px;
-  padding: 12px 4px;
-  border-radius: 16px;
+  flex: 0 0 65px;
+  padding: 8px 4px;
+  border-radius: 12px;
   background: white;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   border: 1px solid #e5e5ea;
   transition: all 0.2s;
   cursor: pointer;
@@ -147,7 +147,7 @@ body {
 }
 
 .category-mini-grid .category-icon {
-  font-size: 1.5rem;
+  font-size: 1.2rem;
 }
 
 .keyboard {
@@ -160,7 +160,7 @@ body {
 
 .key {
   background: white;
-  height: 60px;
+  height: 48px;
   display: flex;
   justify-content: center;
   align-items: center;
