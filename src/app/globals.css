@@ -258,6 +258,11 @@ body {
   color: white;
 }
 
+.type-tab.active.transfer {
+  background: #5856d6;
+  color: white;
+}
+
 .settings-fab {
   position: absolute;
   top: 1.5rem;

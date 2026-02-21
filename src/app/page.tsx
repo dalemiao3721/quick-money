@@ -57,6 +57,10 @@ export default function Home() {
   // Reporting/Detail States
   const [reportDetailId, setReportDetailId] = useState<string | null>(null);
 
+  // Transfer States
+  const [transferToAccountId, setTransferToAccountId] = useState("acc_2");
+  const [transferFee, setTransferFee] = useState("0");
+
   // Forms for Maintenance
   const [catForm, setCatForm] = useState<{ show: boolean, type: 'income' | 'expense', label: string, icon: string, id?: string } | null>(null);
   const [accForm, setAccForm] = useState<{ show: boolean, name: string, type: string, number: string, balance: number, icon: string, id?: string } | null>(null);
@@ -102,6 +106,10 @@ export default function Home() {
       setActiveType(editingTx.type);
       setSelectedCatId(editingTx.categoryId);
       setSelectedAccountId(editingTx.accountId);
+      if (editingTx.type === 'transfer' && editingTx.toAccountId) {
+        setTransferToAccountId(editingTx.toAccountId);
+        // Note: We might need a fee field in Transaction if we want to edit it properly
+      }
     }
   }, [editingTx]);
 
@@ -197,65 +205,83 @@ export default function Home() {
 
   const handleSave = () => {
     const numAmount = parseInt(amount);
-    if (numAmount === 0 || !selectedCatId) return;
+    if (numAmount === 0) return;
 
+    const now = new Date();
     if (editingTx) {
-      // 更新現有交易
-      const oldAmount = editingTx.amount;
-      const oldType = editingTx.type;
-
+      // 處理編輯模式 (暫不處理編輯過往轉帳的複雜餘額抵銷，直接更新紀錄)
       const updatedTx: Transaction = {
         ...editingTx,
         amount: numAmount,
         type: activeType as any,
         categoryId: selectedCatId,
         accountId: selectedAccountId,
+        toAccountId: activeType === 'transfer' ? transferToAccountId : undefined,
+        fee: activeType === 'transfer' ? parseInt(transferFee) : undefined,
         date: txDate,
         note: txNote
       };
-
       setTransactions(prev => prev.map(t => t.id === editingTx.id ? updatedTx : t));
 
-      // 修正帳戶餘額：先退回舊的，再扣除/增加新的
+      // 餘額修正邏輯 (簡化版：僅針對當前選中帳戶)
       setAccounts(prev => prev.map(a => {
         if (a.id === selectedAccountId) {
-          let newBalance = a.balance;
-          // 退回舊的
-          newBalance = oldType === 'income' ? newBalance - oldAmount : newBalance + oldAmount;
-          // 加上新的
-          newBalance = activeType === 'income' ? newBalance + numAmount : newBalance - numAmount;
-          return { ...a, balance: newBalance };
+          const diff = editingTx.type === 'income' ? numAmount - editingTx.amount : editingTx.amount - numAmount;
+          return { ...a, balance: a.balance + diff };
         }
         return a;
       }));
-
       setEditingTx(null);
     } else {
-      // 新增交易
-      const now = new Date();
-      const newTx: Transaction = {
-        id: now.getTime(),
-        amount: numAmount,
-        type: activeType as any,
-        categoryId: selectedCatId,
-        accountId: selectedAccountId,
-        date: txDate,
-        time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        note: txNote,
-        status: '已完成'
-      };
+      // 新增模式
+      if (activeType === 'transfer') {
+        const fee = parseInt(transferFee) || 0;
+        const newTx: Transaction = {
+          id: now.getTime(),
+          amount: numAmount,
+          type: 'transfer',
+          categoryId: selectedCatId || 'transfer',
+          accountId: selectedAccountId,
+          toAccountId: transferToAccountId,
+          fee: fee,
+          date: txDate,
+          time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          note: txNote,
+          status: '已完成'
+        };
 
-      setTransactions(prev => [newTx, ...prev]);
-      setAccounts(prev => prev.map(a => {
-        if (a.id === selectedAccountId) {
-          return { ...a, balance: activeType === 'income' ? a.balance + numAmount : a.balance - numAmount };
-        }
-        return a;
-      }));
+        setTransactions(prev => [newTx, ...prev]);
+        setAccounts(prev => prev.map(a => {
+          if (a.id === selectedAccountId) return { ...a, balance: a.balance - numAmount - fee };
+          if (a.id === transferToAccountId) return { ...a, balance: a.balance + numAmount };
+          return a;
+        }));
+      } else {
+        const newTx: Transaction = {
+          id: now.getTime(),
+          amount: numAmount,
+          type: activeType as any,
+          categoryId: selectedCatId,
+          accountId: selectedAccountId,
+          date: txDate,
+          time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          note: txNote,
+          status: '已完成'
+        };
+
+        setTransactions(prev => [newTx, ...prev]);
+        setAccounts(prev => prev.map(a => {
+          if (a.id === selectedAccountId) {
+            return { ...a, balance: activeType === 'income' ? a.balance + numAmount : a.balance - numAmount };
+          }
+          return a;
+        }));
+      }
     }
 
     setAmount("0");
     setTxNote("");
+    setTransferFee("0");
     setTxDate(new Date().toISOString().split('T')[0]);
     if (window.navigator.vibrate) window.navigator.vibrate([10]);
   };
@@ -375,36 +401,91 @@ export default function Home() {
                 <div className="type-selector" style={{ background: '#f2f2f7', marginBottom: '0.8rem', padding: '3px' }}>
                   <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} style={{ padding: '6px', fontSize: '0.9rem' }} onClick={() => setActiveType('expense')}>支出</button>
                   <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} style={{ padding: '6px', fontSize: '0.9rem' }} onClick={() => setActiveType('income')}>收入</button>
+                  <button className={`type-tab ${activeType === 'transfer' ? 'active transfer' : ''}`} style={{ padding: '6px', fontSize: '0.9rem' }} onClick={() => setActiveType('transfer')}>轉帳</button>
                 </div>
 
-                <div className="input-display" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '2.4rem', fontWeight: '800', color: activeType === 'income' ? 'var(--income)' : 'var(--expense)' }}>
-                    ${parseInt(amount).toLocaleString()}
-                  </span>
-                </div>
+                {activeType === 'transfer' ? (
+                  <div style={{ marginBottom: '1.2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f9fa', borderRadius: '16px', padding: '15px', border: '1px solid #e9ecef' }}>
+                      <div style={{ textAlign: 'center', flex: 1 }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px', color: '#fff' }}>
+                          {accounts.find(a => a.id === selectedAccountId)?.icon || "💰"}
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>轉出帳戶</p>
+                        <p style={{ fontSize: '0.85rem', fontWeight: '700' }}>{accounts.find(a => a.id === selectedAccountId)?.name}</p>
+                        <p style={{ fontSize: '1.1rem', fontWeight: '800', marginTop: '4px', color: '#ff453a' }}>${parseInt(amount).toLocaleString()}</p>
+                      </div>
 
-                {/* 日期與備註輸入 */}
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '0.8rem' }}>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
-                    <span style={{ fontSize: '1rem', marginRight: '6px' }}>📅</span>
-                    <input
-                      type="date"
-                      value={txDate}
-                      onChange={(e) => setTxDate(e.target.value)}
-                      style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem', color: '#1c1c1e', fontWeight: '600', outline: 'none' }}
-                    />
+                      <div style={{ fontSize: '1.5rem', color: '#adb5bd', padding: '0 10px' }}>⇄</div>
+
+                      <div style={{ textAlign: 'center', flex: 1, cursor: 'pointer' }} onClick={() => {
+                        const idx = accounts.findIndex(a => a.id === transferToAccountId);
+                        const nextIdx = (idx + 1) % accounts.length;
+                        setTransferToAccountId(accounts[nextIdx].id);
+                      }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#007aff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px', color: '#fff' }}>
+                          {accounts.find(a => a.id === transferToAccountId)?.icon || "🏦"}
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>轉入帳戶</p>
+                        <p style={{ fontSize: '0.85rem', fontWeight: '700' }}>{accounts.find(a => a.id === transferToAccountId)?.name}</p>
+                        <p style={{ fontSize: '1.1rem', fontWeight: '800', marginTop: '4px', color: '#007aff' }}>${parseInt(amount).toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '8px 12px' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#8e8e93', marginRight: '6px' }}>手續費</span>
+                        <input
+                          type="number"
+                          value={transferFee}
+                          onChange={(e) => setTransferFee(e.target.value)}
+                          style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem', fontWeight: '600', outline: 'none', textAlign: 'right' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '8px 12px' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#8e8e93', marginRight: '6px' }}>📝</span>
+                        <input
+                          type="text"
+                          placeholder="備註..."
+                          value={txNote}
+                          onChange={(e) => setTxNote(e.target.value)}
+                          style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
-                    <span style={{ fontSize: '1rem', marginRight: '6px' }}>📝</span>
-                    <input
-                      type="text"
-                      placeholder="備註..."
-                      value={txNote}
-                      onChange={(e) => setTxNote(e.target.value)}
-                      style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', color: '#1c1c1e', outline: 'none' }}
-                    />
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="input-display" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '2.4rem', fontWeight: '800', color: activeType === 'income' ? 'var(--income)' : 'var(--expense)' }}>
+                        ${parseInt(amount).toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* 日期與備註輸入 */}
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '0.8rem' }}>
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
+                        <span style={{ fontSize: '1rem', marginRight: '6px' }}>📅</span>
+                        <input
+                          type="date"
+                          value={txDate}
+                          onChange={(e) => setTxDate(e.target.value)}
+                          style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem', color: '#1c1c1e', fontWeight: '600', outline: 'none' }}
+                        />
+                      </div>
+                      <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '6px 10px' }}>
+                        <span style={{ fontSize: '1rem', marginRight: '6px' }}>📝</span>
+                        <input
+                          type="text"
+                          placeholder="備註..."
+                          value={txNote}
+                          onChange={(e) => setTxNote(e.target.value)}
+                          style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', color: '#1c1c1e', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="category-mini-grid" style={{ marginBottom: '0.8rem' }}>
                   {currentTypeCategories.map((cat) => (
@@ -425,7 +506,7 @@ export default function Home() {
                   {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => (
                     <button key={k} className="key" style={{ background: '#fff', border: 'none', fontSize: '1.2rem', height: '42px', color: '#1c1c1e', fontWeight: '600' }} onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
                   ))}
-                  <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)', borderRadius: '12px', fontSize: '1rem', color: '#fff', gridColumn: 'span 3', height: '44px', margin: '8px 1.2rem', fontWeight: '700', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+                  <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : (activeType === 'transfer' ? '#5856d6' : 'var(--expense)'), borderRadius: '12px', fontSize: '1rem', color: '#fff', gridColumn: 'span 3', height: '44px', margin: '8px 1.2rem', fontWeight: '700', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
                     {editingTx ? "確認修改" : "確認保存"}
                   </button>
                 </div>
@@ -457,18 +538,22 @@ export default function Home() {
                               {cat?.icon && cat.icon.startsWith('data:image') ? (
                                 <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                               ) : (
-                                <span style={{ fontSize: '1.1rem' }}>{cat?.icon}</span>
+                                <span style={{ fontSize: '1.1rem' }}>{cat?.icon || (t.type === 'transfer' ? '⇄' : '❓')}</span>
                               )}
                             </div>
                             <div style={{ flex: 1 }}>
-                              <p style={{ fontWeight: '700', fontSize: '0.95rem', marginBottom: '2px' }}>{cat?.label}</p>
+                              <p style={{ fontWeight: '700', fontSize: '0.95rem', marginBottom: '2px' }}>
+                                {t.type === 'transfer' ? '轉帳項目' : cat?.label}
+                              </p>
                               <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>
-                                {acc?.name} {t.note ? `· ${t.note}` : ''}
+                                {t.type === 'transfer'
+                                  ? `${acc?.name} ➔ ${accounts.find(a => a.id === t.toAccountId)?.name}${t.note ? ` · ${t.note}` : ''}`
+                                  : `${acc?.name} ${t.note ? `· ${t.note}` : ''}`}
                               </p>
                             </div>
                             <div style={{ textAlign: 'right' }}>
-                              <p style={{ fontWeight: '700', fontSize: '1rem', color: t.type === 'expense' ? '#ff453a' : '#007aff' }}>
-                                {t.type === 'expense' ? '-' : '+'}{t.amount.toLocaleString()}
+                              <p style={{ fontWeight: '700', fontSize: '1rem', color: t.type === 'expense' ? '#ff453a' : (t.type === 'income' ? '#007aff' : '#8e8e93') }}>
+                                {t.type === 'expense' ? '-' : (t.type === 'income' ? '+' : '⇄')}{t.amount.toLocaleString()}
                               </p>
                               <p style={{ fontSize: '0.65rem', color: '#c7c7cc' }}>{t.time}</p>
                             </div>

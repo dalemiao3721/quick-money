@@ -13,6 +13,7 @@ export interface Transaction {
     categoryId: string;
     accountId: string;
     toAccountId?: string; // For transfers
+    fee?: number; // Fees associated with the transaction (especially transfers)
     date: string;
     time: string;
     note?: string;
