@@ -24,6 +24,10 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>(INITIAL_ACCOUNTS);
 
+  // Home Input States (NEW)
+  const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0]);
+  const [txNote, setTxNote] = useState("");
+
   // Report States (V5 New)
   const [reportView, setReportView] = useState<'category' | 'trend'>('category');
   const [reportMainType, setReportMainType] = useState<'expense' | 'income' | 'balance'>('expense');
@@ -164,8 +168,9 @@ export default function Home() {
       type: activeType as any,
       categoryId: selectedCatId,
       accountId: selectedAccountId,
-      date: now.toLocaleDateString(),
+      date: txDate, // 使用選取的日期
       time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      note: txNote, // 使用輸入的備註
       status: '已完成'
     };
 
@@ -179,6 +184,7 @@ export default function Home() {
     }));
 
     setAmount("0");
+    setTxNote(""); // 重置備註
     if (window.navigator.vibrate) window.navigator.vibrate([10]);
   };
 
@@ -265,33 +271,7 @@ export default function Home() {
               ))}
             </div>
 
-            <div className="history-section" style={{ background: 'transparent', margin: '0 1.2rem 1.5rem' }}>
-              <div className="history-header" style={{ marginBottom: '1rem' }}>
-                <h2 className="history-title" style={{ fontSize: '1.1rem', color: '#1c1c1e' }}>最近交易</h2>
-                <span style={{ fontSize: "0.8rem", color: "#8e8e93" }}>{transactions.length} 筆紀錄</span>
-              </div>
-              {transactions.length === 0 ? (
-                <div style={{ padding: '2rem', textAlign: 'center', color: '#8e8e93', background: '#fff', borderRadius: '16px' }}>尚未有紀錄</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {transactions.slice(0, 5).map((tx) => {
-                    const cat = categories.find(c => c.id === tx.categoryId);
-                    return (
-                      <div key={tx.id} className="history-item" onClick={() => { setSelectedTx(tx); setCurrentScreen('tx_detail'); }} style={{ background: '#fff', borderRadius: '16px', padding: '12px 16px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                        <div className="history-item-icon" style={{ background: '#f2f2f7', width: '40px', height: '40px', borderRadius: '12px', fontSize: '1.2rem' }}>{cat?.icon || "❓"}</div>
-                        <div className="history-item-info">
-                          <div className="history-item-label" style={{ fontSize: '0.95rem', fontWeight: '600', color: '#1c1c1e' }}>{cat?.label}</div>
-                          <div className="history-item-time" style={{ fontSize: '0.75rem', color: '#8e8e93' }}>{tx.date} · {tx.time}</div>
-                        </div>
-                        <div className={`history-item-amount ${tx.type}`} style={{ fontWeight: '700', fontSize: '1rem' }}>
-                          {tx.type === 'income' ? '+' : '-'}${tx.amount.toLocaleString()}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            {/* 移除歷史紀錄區域，騰出空間給備註與日期 */}
 
             <div style={{ background: '#fff', borderTopLeftRadius: '32px', borderTopRightRadius: '32px', boxShadow: '0 -10px 30px rgba(0,0,0,0.05)', padding: '1.5rem 1.2rem 0' }}>
               <div className="type-selector" style={{ background: '#f2f2f7', marginBottom: '1.2rem' }}>
@@ -299,10 +279,33 @@ export default function Home() {
                 <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} onClick={() => setActiveType('income')}>收入</button>
               </div>
 
-              <div className="input-display" style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <span style={{ fontSize: '3rem', fontWeight: '800', color: activeType === 'income' ? 'var(--income)' : 'var(--expense)' }}>
+              <div className="input-display" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <span style={{ fontSize: '3.5rem', fontWeight: '800', color: activeType === 'income' ? 'var(--income)' : 'var(--expense)' }}>
                   ${parseInt(amount).toLocaleString()}
                 </span>
+              </div>
+
+              {/* 日期與備註輸入 (NEW) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '14px', padding: '8px 15px' }}>
+                  <span style={{ fontSize: '1.2rem', marginRight: '10px' }}>📅</span>
+                  <input
+                    type="date"
+                    value={txDate}
+                    onChange={(e) => setTxDate(e.target.value)}
+                    style={{ border: 'none', background: 'transparent', flex: 1, fontSize: '1rem', color: '#1c1c1e', fontWeight: '600', outline: 'none' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '14px', padding: '8px 15px' }}>
+                  <span style={{ fontSize: '1.2rem', marginRight: '10px' }}>📝</span>
+                  <input
+                    type="text"
+                    placeholder="點擊輸入備註..."
+                    value={txNote}
+                    onChange={(e) => setTxNote(e.target.value)}
+                    style={{ border: 'none', background: 'transparent', flex: 1, fontSize: '0.95rem', color: '#1c1c1e', outline: 'none' }}
+                  />
+                </div>
               </div>
 
               <div className="category-mini-grid" style={{ marginBottom: '1.5rem' }}>
