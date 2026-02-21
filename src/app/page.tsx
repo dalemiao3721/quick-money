@@ -7,7 +7,7 @@ import { Category, Transaction, Account, INITIAL_EXPENSE_CATEGORIES, INITIAL_INC
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
-type AppScreen = 'main' | 'tx_detail';
+type AppScreen = 'main' | 'accounts' | 'reports' | 'maintenance' | 'tx_detail';
 
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
@@ -25,9 +25,8 @@ export default function Home() {
   const [accounts, setAccounts] = useState<Account[]>(INITIAL_ACCOUNTS);
 
   // UI States
-  const [showStats, setShowStats] = useState(false);
-  const [showMaintenance, setShowMaintenance] = useState(false);
   const [statsPeriod, setStatsPeriod] = useState<'month' | 'year'>('month');
+  const [reportType, setReportType] = useState<'expense' | 'income'>('expense');
   const [confirmModal, setConfirmModal] = useState<{ show: boolean, title: string, onConfirm: () => void } | null>(null);
 
   // Forms for Maintenance
@@ -67,31 +66,18 @@ export default function Home() {
     categories.filter(c => c.type === (activeType === 'transfer' ? 'expense' : activeType)),
     [categories, activeType]);
 
-  const todayTransactions = useMemo(() => {
-    const today = new Date().toLocaleDateString();
-    return transactions.filter(t => new Date(t.id).toLocaleDateString() === today);
-  }, [transactions]);
-
-  const totalTodayExpense = useMemo(() =>
-    todayTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0),
-    [todayTransactions]);
-
-  const totalTodayIncome = useMemo(() =>
-    todayTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0),
-    [todayTransactions]);
-
   const selectedAccount = useMemo(() =>
     accounts.find(a => a.id === selectedAccountId) || accounts[0],
     [accounts, selectedAccountId]);
 
-  // 圖表數據 (Doughnut - 類別分佈)
+  // 圖表數據 (Doughnut - 類別分發)
   const doughnutData = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
     const filteredTx = transactions.filter(t => {
-      if (t.type !== activeType) return false;
+      if (t.type !== reportType) return false;
       const d = new Date(t.id);
       if (statsPeriod === 'month') return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
       return d.getFullYear() === currentYear;
@@ -102,15 +88,17 @@ export default function Home() {
       dataMap[t.categoryId] = (dataMap[t.categoryId] || 0) + t.amount;
     });
 
+    const cats = categories.filter(c => c.type === reportType);
+
     return {
-      labels: currentTypeCategories.map(c => c.label),
+      labels: cats.map(c => c.label),
       datasets: [{
-        data: currentTypeCategories.map(c => dataMap[c.id] || 0),
-        backgroundColor: currentTypeCategories.map(c => c.color),
+        data: cats.map(c => dataMap[c.id] || 0),
+        backgroundColor: cats.map(c => c.color),
         borderWidth: 0,
       }]
     };
-  }, [transactions, currentTypeCategories, activeType, statsPeriod]);
+  }, [transactions, categories, reportType, statsPeriod]);
 
   // 柱狀圖數據 (月度趨勢)
   const barData = useMemo(() => {
@@ -130,8 +118,8 @@ export default function Home() {
     return {
       labels: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].map(m => m + '月'),
       datasets: [
-        { label: '收入', data: monthlyIncome, backgroundColor: '#32D74B' },
-        { label: '支出', data: monthlyExpense, backgroundColor: '#FF453A' }
+        { label: '收入', data: monthlyIncome, backgroundColor: '#32D74B', borderRadius: 4 },
+        { label: '支出', data: monthlyExpense, backgroundColor: '#FF453A', borderRadius: 4 }
       ]
     };
   }, [transactions]);
@@ -163,18 +151,6 @@ export default function Home() {
 
     setAmount("0");
     if (window.navigator.vibrate) window.navigator.vibrate([10]);
-  };
-
-  const requestDeleteTx = (id: number) => {
-    setConfirmModal({
-      show: true,
-      title: "確認刪除此筆紀錄？帳戶餘額不會自動充正，請手動調整。",
-      onConfirm: () => {
-        setTransactions(prev => prev.filter(t => t.id !== id));
-        setConfirmModal(null);
-        if (currentScreen === 'tx_detail') setCurrentScreen('main');
-      }
-    });
   };
 
   const handleSaveCategory = () => {
@@ -211,314 +187,235 @@ export default function Home() {
     setAccForm(null);
   };
 
-  const openTxDetail = (tx: Transaction) => {
-    setSelectedTx(tx);
-    setCurrentScreen('tx_detail');
-  };
-
   if (!isMounted) return <div style={{ background: "#f2f2f7", height: "100vh" }}></div>;
 
-  // --- RENDERING SCREENS ---
+  // --- SCREEN RENDERING ---
 
-  if (currentScreen === 'tx_detail' && selectedTx) {
-    const cat = categories.find(c => c.id === selectedTx.categoryId);
-    return (
-      <div className="bank-view-container">
-        <header className="bank-header">
-          <button className="back-btn" onClick={() => setCurrentScreen('main')}>❮</button>
-          <h1>交易所資訊</h1>
-        </header>
-
-        <div className="bank-tab-group">
-          <div className="bank-tab">內容</div>
-          <div className="bank-tab active">詳細內容</div>
-        </div>
-
-        <div className="bank-card" style={{ borderRadius: '12px' }}>
-          <div className="info-row">
-            <span className="info-label">交易代號</span>
-            <span className="info-value highlight" style={{ color: '#e64a19' }}>{selectedTx.id.toString().slice(-8)}</span>
-          </div>
-          <div className="info-row">
-            <span className="info-label">交易狀態 / 方式</span>
-            <span className="info-value">{selectedTx.status} / {selectedAccount.name}</span>
-          </div>
-          <div className="info-row">
-            <span className="info-label">交易日期</span>
-            <span className="info-value">{selectedTx.date} {selectedTx.time}</span>
-          </div>
-          <div className="info-row">
-            <span className="info-label">類別 / 項目</span>
-            <span className="info-value">{cat?.label} / {selectedTx.type === 'expense' ? '支出' : '收入'}</span>
-          </div>
-          <div style={{ height: '1px', background: '#f2f2f7', margin: '15px 0' }}></div>
-          <div className="info-row" style={{ border: 'none' }}>
-            <span className="info-label" style={{ fontWeight: '700', color: '#1c1c1e' }}>總金額</span>
-            <span className="info-value" style={{ fontSize: '1.2rem' }}>TWD {selectedTx.amount.toLocaleString()}</span>
-          </div>
-        </div>
-
-        <div style={{ padding: '0 1.2rem', marginTop: '1rem' }}>
-          <button className="bank-button-primary" style={{ margin: '0 0 10px 0', width: '100%' }}>下載電子交易證明</button>
-          <button className="bank-button-primary" onClick={() => requestDeleteTx(selectedTx.id)} style={{ margin: 0, width: '100%', background: '#333' }}>刪除此筆交易紀錄</button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <main className="app-container" style={{ background: '#0a0a0c' }}>
-      <button className="settings-fab" onClick={() => setShowMaintenance(true)} style={{ right: 'auto', left: '1.5rem' }}>⚙️</button>
-
-      {/* 頂部概覽 */}
-      <div className="header">
-        <div className="summary-card" onClick={() => setShowStats(true)} style={{ border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <p className="summary-label">{selectedAccount.name} 餘額</p>
-            <span style={{ fontSize: '0.8rem', color: '#8e8e93' }}>TWD</span>
-          </div>
-          <p className="summary-amount">${selectedAccount.balance.toLocaleString()}</p>
-          <div style={{ display: "flex", gap: "20px", marginTop: "12px" }}>
-            <span style={{ color: "var(--income)", fontSize: '0.8rem' }}>今日 +{totalTodayIncome}</span>
-            <span style={{ color: "var(--expense)", fontSize: '0.8rem' }}>今日 -{totalTodayExpense}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 帳戶切換器 (快速切換) */}
-      <div className="category-mini-grid" style={{ padding: '0 1.5rem', marginBottom: '1rem', border: 'none' }}>
-        {accounts.map(acc => (
-          <button
-            key={acc.id}
-            onClick={() => setSelectedAccountId(acc.id)}
-            style={{
-              flex: '0 0 auto', padding: '8px 15px', borderRadius: '12px',
-              background: selectedAccountId === acc.id ? 'var(--primary)' : '#1c1c1e',
-              border: 'none', color: 'white', fontSize: '0.8rem', cursor: 'pointer'
-            }}
-          >
-            {acc.name}
-          </button>
-        ))}
-      </div>
-
-      {/* 歷史明細區域 */}
-      <div className="history-section">
-        <div className="history-header">
-          <h2 className="history-title">最近交易</h2>
-          <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{transactions.length} 筆紀錄</span>
-        </div>
-
-        {transactions.length === 0 ? (
-          <div className="history-empty">尚未有紀錄</div>
-        ) : (
-          <div style={{ paddingBottom: '20px' }}>
-            {transactions.slice(0, 10).map((tx) => {
-              const cat = categories.find(c => c.id === tx.categoryId);
-              return (
-                <div key={tx.id} className="history-item" onClick={() => openTxDetail(tx)} style={{ cursor: 'pointer' }}>
-                  <div className="history-item-icon" style={{ background: '#1c1c1e' }}>{cat?.icon || "❓"}</div>
-                  <div className="history-item-info">
-                    <div className="history-item-label" style={{ fontSize: '0.95rem' }}>{cat?.label}</div>
-                    <div className="history-item-time">{tx.date} · {tx.time}</div>
-                  </div>
-                  <div className={`history-item-amount ${tx.type}`} style={{ fontWeight: '600' }}>
-                    {tx.type === 'income' ? '+' : '-'}${tx.amount.toLocaleString()}
-                  </div>
+  const renderScreen = () => {
+    switch (currentScreen) {
+      case 'main':
+        return (
+          <>
+            <div className="header" style={{ padding: '1.5rem 1.2rem' }}>
+              <div className="summary-card" style={{ marginBottom: 0 }}>
+                <p className="summary-label">{selectedAccount.name} 餘額</p>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '1rem', color: '#8e8e93' }}>TWD</span>
+                  <p className="summary-amount">${selectedAccount.balance.toLocaleString()}</p>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 輸入區 */}
-      <div className="input-feedback-area" style={{ background: '#1c1c1e', borderTop: 'none', padding: '1.2rem' }}>
-        <div className="type-selector" style={{ background: '#000', marginBottom: '1rem' }}>
-          <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} onClick={() => setActiveType('expense')}>支出</button>
-          <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} onClick={() => setActiveType('income')}>收入</button>
-        </div>
-
-        <div className="input-display">
-          <span className="currency-symbol">$</span>
-          <span className="amount-preview" style={{ color: activeType === 'income' ? 'var(--income)' : 'var(--expense)', fontSize: '3rem' }}>{parseInt(amount).toLocaleString()}</span>
-        </div>
-
-        <div className="category-mini-grid" style={{ marginTop: '1rem' }}>
-          {currentTypeCategories.map((cat) => (
-            <button
-              key={cat.id}
-              className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`}
-              onClick={() => setSelectedCatId(cat.id)}
-            >
-              <span className="category-icon">{cat.icon}</span>
-              <span className="category-label">{cat.label}</span>
-            </button>
-          ))}
-          <button className="category-item" onClick={() => setCatForm({ show: true, type: activeType as any, label: '', icon: '✨' })} style={{ border: '1px dashed #444', background: 'transparent' }}>
-            <span className="category-icon">➕</span>
-            <span className="category-label">新增</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="keyboard">
-        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => (
-          <button key={k} className="key" onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
-        ))}
-        <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)' }}>
-          確認保存
-        </button>
-      </div>
-
-      {/* 統計彈出視窗 */}
-      {showStats && (
-        <div className="modal-overlay" onClick={() => setShowStats(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', color: '#1c1c1e', maxWidth: '450px' }}>
-            <button className="modal-close" onClick={() => setShowStats(false)} style={{ background: '#f2f2f7' }}>×</button>
-            <h2 style={{ textAlign: "center", marginBottom: "1rem" }}>數據統計分析</h2>
-
-            <div className="type-selector" style={{ marginBottom: '1rem', background: '#f2f2f7' }}>
-              <button className={`type-tab ${statsPeriod === 'month' ? 'active income' : ''}`} onClick={() => setStatsPeriod('month')}>本月分類</button>
-              <button className={`type-tab ${statsPeriod === 'year' ? 'active income' : ''}`} onClick={() => setStatsPeriod('year')}>年度趨勢</button>
+              </div>
             </div>
 
-            <div className="chart-container" style={{ height: statsPeriod === 'year' ? '250px' : '200px' }}>
+            <div className="input-feedback-area" style={{ background: 'transparent', flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <div className="type-selector" style={{ margin: '0 1.2rem 1.5rem' }}>
+                <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} onClick={() => setActiveType('expense')}>支出</button>
+                <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} onClick={() => setActiveType('income')}>收入</button>
+              </div>
+
+              <div className="input-display" style={{ padding: '0 1.5rem' }}>
+                <span className="amount-preview" style={{ color: activeType === 'income' ? 'var(--income)' : 'var(--expense)', fontSize: '3.5rem' }}>${parseInt(amount).toLocaleString()}</span>
+              </div>
+
+              <div className="category-mini-grid" style={{ padding: '1rem 1.2rem', marginTop: 'auto' }}>
+                {currentTypeCategories.map((cat) => (
+                  <button key={cat.id} className={`category-item ${selectedCatId === cat.id ? "selected" : ""}`} onClick={() => setSelectedCatId(cat.id)}>
+                    <span className="category-icon">{cat.icon}</span>
+                    <span className="category-label">{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="keyboard" style={{ background: '#fff' }}>
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => (
+                <button key={k} className="key" style={{ background: '#fff', border: '1px solid #f2f2f7' }} onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
+              ))}
+              <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)', borderRadius: 0 }}>
+                確認保存
+              </button>
+            </div>
+          </>
+        );
+
+      case 'accounts':
+        return (
+          <div className="bank-view-container">
+            <header className="bank-header"><h1>我的帳戶</h1></header>
+            <div style={{ padding: '0.8rem 0' }}>
+              {accounts.map(acc => (
+                <div key={acc.id} className="bank-card" onClick={() => { setSelectedAccountId(acc.id); setCurrentScreen('main'); }} style={{ cursor: 'pointer', border: selectedAccountId === acc.id ? '2px solid #e64a19' : 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.1rem', marginBottom: '4px' }}>{acc.name}</h3>
+                      <p style={{ fontSize: '0.8rem', color: '#8e8e93' }}>{acc.type} · {acc.number}</p>
+                    </div>
+                    <p style={{ fontSize: '1.2rem', fontWeight: '700' }}>${acc.balance.toLocaleString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button className="bank-button-primary" onClick={() => setAccForm({ show: true, name: '', type: 'SAVINGS', number: '', balance: 0 })} style={{ background: '#333' }}>+ 新增帳戶</button>
+          </div>
+        );
+
+      case 'reports':
+        return (
+          <div className="bank-view-container">
+            <header className="bank-header"><h1>收支報表</h1></header>
+            <div className="bank-tab-group">
+              <button className={`bank-tab ${reportType === 'expense' ? 'active' : ''}`} onClick={() => setReportType('expense')}>支出</button>
+              <button className={`bank-tab ${reportType === 'income' ? 'active' : ''}`} onClick={() => setReportType('income')}>收入</button>
+              <button className={`bank-tab ${statsPeriod === 'year' ? 'active' : ''}`} onClick={() => setStatsPeriod(statsPeriod === 'month' ? 'year' : 'month')}>{statsPeriod === 'month' ? '年度' : '月度'}</button>
+            </div>
+
+            <div className="chart-container">
               {statsPeriod === 'month' ? (
-                <Doughnut data={doughnutData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
+                <Doughnut data={doughnutData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }} />
               ) : (
-                <Bar data={barData} options={{
-                  maintainAspectRatio: false,
-                  plugins: { legend: { display: false } },
-                  scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } } }
-                }} />
+                <Bar data={barData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
               )}
             </div>
 
-            {statsPeriod === 'month' && (
-              <div className="chart-legend" style={{ maxHeight: '180px', overflowY: 'auto', marginTop: '1rem' }}>
-                {categories.filter(c => c.type === (activeType === 'transfer' ? 'expense' : activeType)).map(c => {
-                  const items = transactions.filter(t => t.categoryId === c.id);
-                  const now = new Date();
-                  const monthTx = items.filter(t => {
-                    const d = new Date(t.id);
-                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                  });
-                  const sum = monthTx.reduce((s, t) => s + t.amount, 0);
-                  if (sum === 0) return null;
-                  return (
-                    <div key={c.id} className="legend-item" style={{ borderBottom: '1px solid #f2f2f7', padding: '8px 0' }}>
-                      <div className="legend-dot-label"><div className="legend-dot" style={{ background: c.color }}></div><span>{c.label}</span></div>
-                      <span style={{ fontWeight: '600' }}>${sum.toLocaleString()}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <div className="bank-card" style={{ flex: 1, marginBottom: '20px' }}>
+              <div className="info-title" style={{ fontWeight: 700, marginBottom: '10px' }}>分類明細</div>
+              {categories.filter(c => c.type === reportType).map(c => {
+                const total = transactions.filter(t => t.categoryId === c.id && (statsPeriod === 'month' ? new Date(t.id).getMonth() === new Date().getMonth() : true)).reduce((sum, t) => sum + t.amount, 0);
+                if (total === 0) return null;
+                return (
+                  <div key={c.id} className="info-row">
+                    <span className="info-label">{c.icon} {c.label}</span>
+                    <span className="info-value">${total.toLocaleString()}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
-      {/* 維護彈出視窗 */}
-      {showMaintenance && (
-        <div className="modal-overlay" onClick={() => setShowMaintenance(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', color: '#1c1c1e', maxHeight: '85vh', overflowY: 'auto' }}>
-            <button className="modal-close" onClick={() => setShowMaintenance(false)} style={{ background: '#f2f2f7' }}>×</button>
-            <h2 style={{ marginBottom: "1.5rem" }}>維護管理</h2>
+        );
 
-            <div className="history-title" style={{ color: '#1c1c1e', display: 'flex', justifyContent: 'space-between' }}>
-              帳戶管理
-              <button onClick={() => setAccForm({ show: true, name: '', type: 'CASH', number: '', balance: 0 })} style={{ color: 'var(--primary)', border: 'none', background: 'none', fontSize: '0.9rem', cursor: 'pointer' }}>+ 新增</button>
-            </div>
-            {accounts.map(acc => (
-              <div key={acc.id} className="info-row">
-                <span onClick={() => setAccForm({ ...acc, show: true })} style={{ cursor: 'pointer' }}>🏦 {acc.name} (${acc.balance.toLocaleString()})</span>
-                <button onClick={() => {
-                  setConfirmModal({ show: true, title: "確定刪除此帳戶？相關交易紀錄將會遺失參考。", onConfirm: () => { setAccounts(p => p.filter(a => a.id !== acc.id)); setConfirmModal(null); } });
-                }} style={{ background: 'transparent', border: 'none', color: '#ff453a', cursor: 'pointer' }}>刪除</button>
-              </div>
-            ))}
+      case 'maintenance':
+        return (
+          <div className="bank-view-container">
+            <header className="bank-header"><h1>維護管理</h1></header>
 
-            <div className="history-title" style={{ color: '#1c1c1e', marginTop: '2rem', display: 'flex', justifyContent: 'space-between' }}>
-              支出分類
-              <button onClick={() => setCatForm({ show: true, type: 'expense', label: '', icon: '✨' })} style={{ color: 'var(--primary)', border: 'none', background: 'none', fontSize: '0.9rem', cursor: 'pointer' }}>+ 新增</button>
+            <div className="bank-card">
+              <h3 style={{ marginBottom: '1rem', fontSize: '1rem' }}>帳戶維護</h3>
+              {accounts.map(acc => (
+                <div key={acc.id} className="info-row">
+                  <span>{acc.name}</span>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => setAccForm({ ...acc, show: true })} style={{ color: '#007aff', border: 'none', background: 'none' }}>編輯</button>
+                    <button onClick={() => setAccounts(p => p.filter(a => a.id !== acc.id))} style={{ color: '#ff453a', border: 'none', background: 'none' }}>刪除</button>
+                  </div>
+                </div>
+              ))}
             </div>
-            {categories.filter(c => c.type === 'expense').map(c => (
-              <div key={c.id} className="info-row">
-                <span onClick={() => setCatForm({ ...c, show: true })} style={{ cursor: 'pointer' }}>{c.icon} {c.label}</span>
-                <button onClick={() => {
-                  setConfirmModal({ show: true, title: "確定刪除此分類？", onConfirm: () => { setCategories(p => p.filter(cat => cat.id !== c.id)); setConfirmModal(null); } });
-                }} style={{ background: 'transparent', border: 'none', color: '#ff453a', cursor: 'pointer' }}>刪除</button>
-              </div>
-            ))}
 
-            <div className="history-title" style={{ color: '#1c1c1e', marginTop: '2rem', display: 'flex', justifyContent: 'space-between' }}>
-              收入分類
-              <button onClick={() => setCatForm({ show: true, type: 'income', label: '', icon: '💰' })} style={{ color: 'var(--primary)', border: 'none', background: 'none', fontSize: '0.9rem', cursor: 'pointer' }}>+ 新增</button>
-            </div>
-            {categories.filter(c => c.type === 'income').map(c => (
-              <div key={c.id} className="info-row">
-                <span onClick={() => setCatForm({ ...c, show: true })} style={{ cursor: 'pointer' }}>{c.icon} {c.label}</span>
-                <button onClick={() => {
-                  setConfirmModal({ show: true, title: "確定刪除此分類？", onConfirm: () => { setCategories(p => p.filter(cat => cat.id !== c.id)); setConfirmModal(null); } });
-                }} style={{ background: 'transparent', border: 'none', color: '#ff453a', cursor: 'pointer' }}>刪除</button>
+            <div className="bank-card">
+              <h3 style={{ marginBottom: '1rem', fontSize: '1rem' }}>分類維護 ({activeType === 'expense' ? '支出' : '收入'})</h3>
+              <div className="type-selector" style={{ marginBottom: '1rem' }}>
+                <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} onClick={() => setActiveType('expense')}>支出</button>
+                <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} onClick={() => setActiveType('income')}>收入</button>
               </div>
-            ))}
+              {categories.filter(c => c.type === (activeType === 'transfer' ? 'expense' : activeType)).map(c => (
+                <div key={c.id} className="info-row">
+                  <span>{c.icon} {c.label}</span>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => setCatForm({ ...c, show: true })} style={{ color: '#007aff', border: 'none', background: 'none' }}>編輯</button>
+                    <button onClick={() => setCategories(p => p.filter(cat => cat.id !== c.id))} style={{ color: '#ff453a', border: 'none', background: 'none' }}>刪除</button>
+                  </div>
+                </div>
+              ))}
+              <button className="bank-button-primary" onClick={() => setCatForm({ show: true, type: activeType as any, label: '', icon: '✨' })} style={{ marginTop: '1rem', width: '100%', margin: '1rem 0' }}>+ 新增分類</button>
+            </div>
           </div>
-        </div>
-      )}
+        );
 
-      {/* 表單與確認對話框 */}
+      case 'tx_detail':
+        if (!selectedTx) return null;
+        const cat = categories.find(c => c.id === selectedTx.categoryId);
+        return (
+          <div className="bank-view-container">
+            <header className="bank-header">
+              <button className="back-btn" onClick={() => setCurrentScreen('main')}>❮</button>
+              <h1>交易詳情</h1>
+            </header>
+            <div className="bank-card" style={{ marginTop: '2rem', borderRadius: '24px' }}>
+              <div style={{ textAlign: 'center', margin: '1rem 0 2rem' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>{cat?.icon}</div>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>{cat?.label}</h2>
+                <p style={{ color: selectedTx.type === 'expense' ? '#ff453a' : '#32d74b', fontSize: '2rem', fontWeight: '800', marginTop: '10px' }}>
+                  {selectedTx.type === 'expense' ? '-' : '+'}${selectedTx.amount.toLocaleString()}
+                </p>
+              </div>
+              <div className="info-row">
+                <span className="info-label">交易帳戶</span>
+                <span className="info-value">{accounts.find(a => a.id === selectedTx.accountId)?.name}</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">交易時間</span>
+                <span className="info-value">{selectedTx.date} {selectedTx.time}</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">交易狀態</span>
+                <span className="info-value highlight">{selectedTx.status}</span>
+              </div>
+            </div>
+            <button className="bank-button-primary" onClick={() => { setTransactions(p => p.filter(t => t.id !== selectedTx.id)); setCurrentScreen('main'); }} style={{ background: '#ff453a', marginTop: '2rem' }}>刪除此筆交易</button>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="app-container" style={{ background: '#f2f2f7' }}>
+      <div style={{ flex: 1, paddingBottom: '65px' }}>
+        {renderScreen()}
+      </div>
+
+      {/* Bottom Tab Bar */}
+      <nav className="tab-bar">
+        {[
+          { id: 'main', label: '主頁', icon: '🏠' },
+          { id: 'accounts', label: '帳戶', icon: '🏦' },
+          { id: 'reports', label: '報表', icon: '📊' },
+          { id: 'maintenance', label: '維護', icon: '⚙️' }
+        ].map(tab => (
+          <div key={tab.id} className={`tab-item ${currentScreen === tab.id ? 'active' : ''}`} onClick={() => { setCurrentScreen(tab.id as any); setSelectedTx(null); }}>
+            <span className="tab-icon">{tab.icon}</span>
+            <span className="tab-label">{tab.label}</span>
+          </div>
+        ))}
+      </nav>
+
+      {/* Modals and Forms */}
       {catForm?.show && (
-        <div className="modal-overlay" style={{ zIndex: 2100 }}>
-          <div className="modal-content" style={{ maxWidth: '350px', background: '#fff', color: '#1c1c1e' }}>
-            <h2>{catForm.id ? '編輯分類' : '新增分類'}</h2>
-            <div style={{ margin: '1.5rem 0' }}>
-              <p className="info-label">名稱</p>
-              <input type="text" value={catForm.label} onChange={(e) => setCatForm({ ...catForm, label: e.target.value })} style={{ width: '100%', padding: '12px', background: '#f2f2f7', border: 'none', borderRadius: '12px', color: '#1c1c1e' }} autoFocus />
-              <p className="info-label" style={{ marginTop: '1rem' }}>圖示 (Emoji)</p>
-              <input type="text" value={catForm.icon} onChange={(e) => setCatForm({ ...catForm, icon: e.target.value })} style={{ width: '100%', padding: '12px', background: '#f2f2f7', border: 'none', borderRadius: '12px', color: '#1c1c1e', fontSize: '1.5rem' }} />
-            </div>
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="modal-content" style={{ background: '#fff' }}>
+            <h2 style={{ marginBottom: '1.5rem' }}>{catForm.id ? '編輯分類' : '新增分類'}</h2>
+            <input type="text" placeholder="名稱" value={catForm.label} onChange={e => setCatForm({ ...catForm, label: e.target.value })} style={{ width: '100%', padding: '12px', border: '1px solid #e5e5ea', borderRadius: '12px', marginBottom: '1rem' }} />
+            <input type="text" placeholder="圖示 (Emoji)" value={catForm.icon} onChange={e => setCatForm({ ...catForm, icon: e.target.value })} style={{ width: '100%', padding: '12px', border: '1px solid #e5e5ea', borderRadius: '12px', marginBottom: '1.5rem' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="bank-button-primary" onClick={() => setCatForm(null)} style={{ background: '#eee', color: '#333' }}>取消</button>
-              <button className="bank-button-primary" onClick={handleSaveCategory}>儲存</button>
+              <button className="bank-button-primary" style={{ background: '#eee', color: '#333', margin: 0 }} onClick={() => setCatForm(null)}>取消</button>
+              <button className="bank-button-primary" style={{ margin: 0 }} onClick={handleSaveCategory}>儲存</button>
             </div>
           </div>
         </div>
       )}
 
       {accForm?.show && (
-        <div className="modal-overlay" style={{ zIndex: 2100 }}>
-          <div className="modal-content" style={{ maxWidth: '350px', background: '#fff', color: '#1c1c1e' }}>
-            <h2>{accForm.id ? '編輯帳戶' : '新增帳戶'}</h2>
-            <div style={{ margin: '1rem 0' }}>
-              <p className="info-label">帳戶名稱</p>
-              <input type="text" value={accForm.name} onChange={(e) => setAccForm({ ...accForm, name: e.target.value })} style={{ width: '100%', padding: '10px', background: '#f2f2f7', border: 'none', borderRadius: '10px', marginBottom: '10px' }} />
-              <p className="info-label">類型 (如: CASH, SAVINGS)</p>
-              <input type="text" value={accForm.type} onChange={(e) => setAccForm({ ...accForm, type: e.target.value })} style={{ width: '100%', padding: '10px', background: '#f2f2f7', border: 'none', borderRadius: '10px', marginBottom: '10px' }} />
-              <p className="info-label">帳號/卡號</p>
-              <input type="text" value={accForm.number} onChange={(e) => setAccForm({ ...accForm, number: e.target.value })} style={{ width: '100%', padding: '10px', background: '#f2f2f7', border: 'none', borderRadius: '10px', marginBottom: '10px' }} />
-              <p className="info-label">初始餘額</p>
-              <input type="number" value={accForm.balance} onChange={(e) => setAccForm({ ...accForm, balance: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px', background: '#f2f2f7', border: 'none', borderRadius: '10px' }} />
-            </div>
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="modal-content" style={{ background: '#fff' }}>
+            <h2 style={{ marginBottom: '1.5rem' }}>{accForm.id ? '編輯帳戶' : '新增帳戶'}</h2>
+            <input type="text" placeholder="帳戶名稱" value={accForm.name} onChange={e => setAccForm({ ...accForm, name: e.target.value })} style={{ width: '100%', padding: '12px', border: '1px solid #e5e5ea', borderRadius: '12px', marginBottom: '1rem' }} />
+            <input type="text" placeholder="類型 (例如: 現金, 往來戶口)" value={accForm.type} onChange={e => setAccForm({ ...accForm, type: e.target.value })} style={{ width: '100%', padding: '12px', border: '1px solid #e5e5ea', borderRadius: '12px', marginBottom: '1rem' }} />
+            <input type="number" placeholder="餘額" value={accForm.balance} onChange={e => setAccForm({ ...accForm, balance: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '12px', border: '1px solid #e5e5ea', borderRadius: '12px', marginBottom: '1.5rem' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="bank-button-primary" onClick={() => setAccForm(null)} style={{ background: '#eee', color: '#333' }}>取消</button>
-              <button className="bank-button-primary" onClick={handleSaveAccount}>儲存</button>
+              <button className="bank-button-primary" style={{ background: '#eee', color: '#333', margin: 0 }} onClick={() => setAccForm(null)}>取消</button>
+              <button className="bank-button-primary" style={{ margin: 0 }} onClick={handleSaveAccount}>儲存</button>
             </div>
           </div>
         </div>
       )}
-
-      {confirmModal?.show && (
-        <div className="modal-overlay" style={{ zIndex: 3000 }}>
-          <div className="modal-content" style={{ maxWidth: '320px', textAlign: 'center', background: '#fff', color: '#1c1c1e' }}>
-            <p style={{ margin: '1rem 0', fontSize: '1.1rem', fontWeight: '500' }}>{confirmModal.title}</p>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem' }}>
-              <button className="bank-button-primary" onClick={() => setConfirmModal(null)} style={{ background: '#eee', color: '#333', margin: 0, flex: 1 }}>取消</button>
-              <button className="bank-button-primary" onClick={confirmModal.onConfirm} style={{ margin: 0, flex: 1 }}>確定</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </main>
+    </div>
   );
 }

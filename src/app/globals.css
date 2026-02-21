@@ -312,10 +312,11 @@ body {
 /* --- Bank Style UI Components (New V3) --- */
 .bank-view-container {
   background: var(--bank-bg);
-  min-height: 100vh;
+  height: calc(100vh - 65px - env(safe-area-inset-bottom));
   color: var(--bank-text);
-  padding-bottom: env(safe-area-inset-bottom);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .bank-header {
@@ -324,13 +325,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 100;
   border-bottom: 1px solid #e5e5ea;
 }
 
 .bank-header h1 {
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .back-btn {
@@ -341,36 +344,41 @@ body {
   font-size: 1.2rem;
   background: none;
   border: none;
-  color: #8e8e93;
+  color: #007aff;
 }
 
 .bank-card {
   background: var(--bank-card);
-  margin: 1rem 1.2rem;
-  padding: 1.5rem;
-  border-radius: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  margin: 0.8rem 1.2rem;
+  padding: 1.2rem;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .bank-tab-group {
   display: flex;
-  border-bottom: 1px solid #e5e5ea;
   background: white;
+  padding: 4px;
+  border-radius: 12px;
+  margin: 1rem 1.2rem;
+  border: 1px solid #e5e5ea;
 }
 
 .bank-tab {
   flex: 1;
-  padding: 12px;
+  padding: 8px;
   text-align: center;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--bank-secondary);
-  border-bottom: 3px solid transparent;
+  border-radius: 8px;
+  transition: all 0.2s;
+  cursor: pointer;
 }
 
 .bank-tab.active {
+  background: #f2f2f7;
   color: #e64a19;
   font-weight: 600;
-  border-bottom-color: #e64a19;
 }
 
 .info-row {
@@ -397,35 +405,27 @@ body {
 
 .info-value.highlight {
   color: #e64a19;
-  font-size: 1.1rem;
 }
 
 .bank-action-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  padding: 1.5rem;
+  padding: 1.2rem;
   background: white;
-  margin-bottom: 1rem;
-}
-
-.bank-action-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+  margin-bottom: 0.8rem;
 }
 
 .bank-icon-circle {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   background: #fdf2f2;
   color: var(--accent);
   border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 
 .bank-icon-label {
@@ -439,13 +439,59 @@ body {
   background: #e64a19;
   color: white;
   width: calc(100% - 2.4rem);
-  margin: 1.2rem auto;
-  padding: 1rem;
+  margin: 1rem auto;
+  padding: 0.8rem;
   border: none;
   border-radius: 12px;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   display: block;
-  text-align: center;
+}
+
+/* --- Bottom Nav Tab Bar --- */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(65px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid #e5e5ea;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 500;
+}
+
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #8e8e93;
+  font-size: 0.65rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-item.active {
+  color: #e64a19;
+}
+
+.tab-icon {
+  font-size: 1.4rem;
+}
+
+.chart-container {
+  padding: 1.5rem;
+  background: white;
+  border-radius: 20px;
+  margin: 1.2rem;
+  height: 250px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
