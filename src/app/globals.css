@@ -464,28 +464,31 @@ body {
   display: block;
 }
 
-/* --- Bottom Nav Tab Bar --- */
+/* --- Bottom Nav Tab Bar (Updated V5) --- */
 .tab-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   height: calc(65px + env(safe-area-inset-bottom));
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
+  background: white;
   border-top: 1px solid #e5e5ea;
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
   align-items: center;
+  padding: 0 10px;
   padding-bottom: env(safe-area-inset-bottom);
   z-index: 500;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
 }
 
 .tab-item {
   flex: 1;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   color: #8e8e93;
   font-size: 0.65rem;
@@ -495,18 +498,235 @@ body {
 }
 
 .tab-item.active {
-  color: #e64a19;
+  color: #007aff;
+}
+
+.tab-item.active.report {
+  color: #ffa000;
 }
 
 .tab-icon {
   font-size: 1.4rem;
 }
 
+.floating-tab-center {
+  position: relative;
+  width: 70px;
+  height: 70px;
+  margin-top: -30px;
+  display: flex;
+  justify-content: center;
+}
+
+.floating-add-btn {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #ffb74d 0%, #ff8f00 100%);
+  border-radius: 50%;
+  border: none;
+  box-shadow: 0 4px 15px rgba(255, 143, 0, 0.4);
+  color: white;
+  font-size: 2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 600;
+}
+
+/* --- Report Specific UI (V5) --- */
+.report-toggle-group {
+  display: flex;
+  background: #e5e5ea;
+  padding: 3px;
+  border-radius: 12px;
+  margin: 1rem auto;
+  width: max-content;
+}
+
+.report-toggle-btn {
+  padding: 6px 16px;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #8e8e93;
+  background: transparent;
+  cursor: pointer;
+}
+
+.report-toggle-btn.active {
+  background: #ffb74d;
+  color: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.report-main-tabs {
+  display: flex;
+  border-bottom: 2px solid #e5e5ea;
+  margin-bottom: 1rem;
+}
+
+.report-main-tab {
+  flex: 1;
+  padding: 12px 0;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #8e8e93;
+  position: relative;
+  border: none;
+  background: none;
+}
+
+.report-main-tab.active {
+  color: #1c1c1e;
+}
+
+.report-main-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 20%;
+  right: 20%;
+  height: 3px;
+  background: #ff6d00;
+  border-radius: 3px;
+}
+
+.sub-filter-row {
+  display: flex;
+  gap: 10px;
+  padding: 0 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.sub-filter-pill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #e5e5ea;
+  background: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #a0a0a0;
+  cursor: pointer;
+}
+
+.sub-filter-pill.active {
+  background: #ffb74d;
+  color: white;
+  border-color: #ffb74d;
+}
+
+.date-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.date-text {
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.total-summary-text {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.chart-center-container {
+  position: relative;
+  width: 250px;
+  height: 250px;
+  margin: 0 auto 2rem;
+}
+
+.chart-center-info {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  width: 150px;
+}
+
+.center-label {
+  font-size: 0.8rem;
+  color: #8e8e93;
+}
+
+.center-amount {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1c1c1e;
+}
+
+.report-list {
+  padding: 0 1.2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f2f2f7;
+}
+
+.report-item-color-bar {
+  width: 5px;
+  height: 25px;
+  border-radius: 3px;
+  margin-right: 12px;
+}
+
+.report-item-icon-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #37474f;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-right: 12px;
+  color: white;
+  font-size: 1.2rem;
+}
+
+.report-item-info {
+  flex: 1;
+}
+
+.report-item-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1c1c1e;
+}
+
+.report-item-amount {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.report-item-amount.income {
+  color: #32d74b;
+}
+
+.report-item-amount.expense {
+  color: #ff5252;
+}
+
 .chart-container {
-  padding: 1.5rem;
+  padding: 1rem;
   background: white;
   border-radius: 20px;
-  margin: 1.2rem;
-  height: 250px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  margin: 0 1.2rem 1.5rem;
+  height: 300px;
 }

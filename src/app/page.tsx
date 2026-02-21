@@ -24,10 +24,11 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>(INITIAL_ACCOUNTS);
 
-  // UI States
-  const [statsPeriod, setStatsPeriod] = useState<'month' | 'year'>('month');
-  const [reportType, setReportType] = useState<'expense' | 'income'>('expense');
-  const [confirmModal, setConfirmModal] = useState<{ show: boolean, title: string, onConfirm: () => void } | null>(null);
+  // Report States (V5 New)
+  const [reportView, setReportView] = useState<'category' | 'trend'>('category');
+  const [reportMainType, setReportMainType] = useState<'expense' | 'income' | 'balance'>('expense');
+  const [reportPeriod, setReportPeriod] = useState<'day' | 'month' | 'year'>('month'); // category: month/year, trend: day/month
+  const [reportDate, setReportDate] = useState(new Date());
 
   // Forms for Maintenance
   const [catForm, setCatForm] = useState<{ show: boolean, type: 'income' | 'expense', label: string, icon: string, id?: string } | null>(null);
@@ -70,59 +71,87 @@ export default function Home() {
     accounts.find(a => a.id === selectedAccountId) || accounts[0],
     [accounts, selectedAccountId]);
 
-  // 圖表數據 (Doughnut - 類別分發)
-  const doughnutData = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+  // Helper for report date string
+  const reportDateStr = useMemo(() => {
+    if (reportPeriod === 'year') return `${reportDate.getFullYear()} 年`;
+    return `${reportDate.getFullYear()} 年 ${reportDate.getMonth() + 1} 月`;
+  }, [reportDate, reportPeriod]);
 
-    const filteredTx = transactions.filter(t => {
-      if (t.type !== reportType) return false;
+  // Filtered transactions for report
+  const filteredReportTransactions = useMemo(() => {
+    return transactions.filter(t => {
       const d = new Date(t.id);
-      if (statsPeriod === 'month') return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-      return d.getFullYear() === currentYear;
-    });
+      const sameYear = d.getFullYear() === reportDate.getFullYear();
+      const sameMonth = d.getMonth() === reportDate.getMonth();
 
+      if (reportPeriod === 'year') return sameYear;
+      return sameYear && sameMonth;
+    });
+  }, [transactions, reportDate, reportPeriod]);
+
+  // Doughnut Data (Category Report)
+  const doughnutData = useMemo(() => {
     const dataMap: Record<string, number> = {};
-    filteredTx.forEach(t => {
+    const filtered = filteredReportTransactions.filter(t => t.type === reportMainType);
+    filtered.forEach(t => {
       dataMap[t.categoryId] = (dataMap[t.categoryId] || 0) + t.amount;
     });
 
-    const cats = categories.filter(c => c.type === reportType);
+    const cats = categories.filter(c => c.type === reportMainType);
+    const sortedCats = [...cats].sort((a, b) => (dataMap[b.id] || 0) - (dataMap[a.id] || 0));
 
     return {
-      labels: cats.map(c => c.label),
+      labels: sortedCats.map(c => c.label),
       datasets: [{
-        data: cats.map(c => dataMap[c.id] || 0),
-        backgroundColor: cats.map(c => c.color),
+        data: sortedCats.map(c => dataMap[c.id] || 0),
+        backgroundColor: sortedCats.map(c => c.color),
         borderWidth: 0,
+        hoverOffset: 4
+      }],
+      total: filtered.reduce((s, t) => s + t.amount, 0)
+    };
+  }, [filteredReportTransactions, categories, reportMainType]);
+
+  // Bar Data (Trend)
+  const barData = useMemo(() => {
+    const labels: string[] = [];
+    const incomeData: number[] = [];
+    const expenseData: number[] = [];
+
+    if (reportPeriod === 'month') {
+      // Daily trend for specific month
+      const daysInMonth = new Date(reportDate.getFullYear(), reportDate.getMonth() + 1, 0).getDate();
+      for (let i = 1; i <= daysInMonth; i++) {
+        labels.push(`${i}日`);
+        const dayTxs = filteredReportTransactions.filter(t => new Date(t.id).getDate() === i);
+        incomeData.push(dayTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
+        expenseData.push(dayTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+      }
+    } else {
+      // Monthly trend for specific year
+      for (let i = 0; i < 12; i++) {
+        labels.push(`${i + 1}月`);
+        const monthTxs = transactions.filter(t => {
+          const d = new Date(t.id);
+          return d.getFullYear() === reportDate.getFullYear() && d.getMonth() === i;
+        });
+        incomeData.push(monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
+        expenseData.push(monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+      }
+    }
+
+    const currentDataSet = reportMainType === 'income' ? incomeData : expenseData;
+
+    return {
+      labels,
+      datasets: [{
+        label: reportMainType === 'income' ? '收入' : '支出',
+        data: currentDataSet,
+        backgroundColor: reportMainType === 'income' ? '#32d74b' : '#ffb74d',
+        borderRadius: 4
       }]
     };
-  }, [transactions, categories, reportType, statsPeriod]);
-
-  // 柱狀圖數據 (月度趨勢)
-  const barData = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const monthlyIncome = new Array(12).fill(0);
-    const monthlyExpense = new Array(12).fill(0);
-
-    transactions.forEach(t => {
-      const d = new Date(t.id);
-      if (d.getFullYear() === currentYear) {
-        if (t.type === 'income') monthlyIncome[d.getMonth()] += t.amount;
-        else if (t.type === 'expense') monthlyExpense[d.getMonth()] += t.amount;
-      }
-    });
-
-    return {
-      labels: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].map(m => m + '月'),
-      datasets: [
-        { label: '收入', data: monthlyIncome, backgroundColor: '#32D74B', borderRadius: 4 },
-        { label: '支出', data: monthlyExpense, backgroundColor: '#FF453A', borderRadius: 4 }
-      ]
-    };
-  }, [transactions]);
+  }, [filteredReportTransactions, transactions, reportDate, reportPeriod, reportMainType]);
 
   const handleSave = () => {
     const numAmount = parseInt(amount);
@@ -187,6 +216,16 @@ export default function Home() {
     setAccForm(null);
   };
 
+  const changeReportDate = (dir: number) => {
+    const next = new Date(reportDate);
+    if (reportPeriod === 'year') {
+      next.setFullYear(next.getFullYear() + dir);
+    } else {
+      next.setMonth(next.getMonth() + dir);
+    }
+    setReportDate(next);
+  };
+
   if (!isMounted) return <div style={{ background: "#f2f2f7", height: "100vh" }}></div>;
 
   // --- SCREEN RENDERING ---
@@ -206,7 +245,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 帳戶快速切換 */}
             <div className="category-mini-grid" style={{ padding: '0 1.2rem', marginBottom: '1.5rem', gap: '12px', background: 'transparent' }}>
               {accounts.map(acc => (
                 <button
@@ -227,7 +265,6 @@ export default function Home() {
               ))}
             </div>
 
-            {/* 歷史紀錄區域 */}
             <div className="history-section" style={{ background: 'transparent', margin: '0 1.2rem 1.5rem' }}>
               <div className="history-header" style={{ marginBottom: '1rem' }}>
                 <h2 className="history-title" style={{ fontSize: '1.1rem', color: '#1c1c1e' }}>最近交易</h2>
@@ -256,7 +293,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* 輸入區域 (固定的) */}
             <div style={{ background: '#fff', borderTopLeftRadius: '32px', borderTopRightRadius: '32px', boxShadow: '0 -10px 30px rgba(0,0,0,0.05)', padding: '1.5rem 1.2rem 0' }}>
               <div className="type-selector" style={{ background: '#f2f2f7', marginBottom: '1.2rem' }}>
                 <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} onClick={() => setActiveType('expense')}>支出</button>
@@ -280,37 +316,9 @@ export default function Home() {
 
               <div className="keyboard" style={{ margin: '0 -1.2rem', background: '#e5e5ea', gap: '1px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
                 {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((k) => (
-                  <button
-                    key={k}
-                    className="key"
-                    style={{
-                      background: '#fff',
-                      border: 'none',
-                      fontSize: '1.5rem',
-                      height: '65px',
-                      color: '#1c1c1e', /* 強制顯示深色數字 */
-                      fontWeight: '600'
-                    }}
-                    onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}
-                  >
-                    {k}
-                  </button>
+                  <button key={k} className="key" style={{ background: '#fff', border: 'none', fontSize: '1.5rem', height: '65px', color: '#1c1c1e', fontWeight: '600' }} onClick={() => (k === "⌫" ? setAmount(p => p.length > 1 ? p.slice(0, -1) : "0") : (k === "C" ? setAmount("0") : setAmount(p => p === "0" ? k : p + k)))}>{k}</button>
                 ))}
-                <button
-                  className="key confirm"
-                  onClick={handleSave}
-                  style={{
-                    background: activeType === 'income' ? 'var(--income)' : 'var(--expense)',
-                    borderRadius: '16px',
-                    fontSize: '1.2rem',
-                    color: '#fff',
-                    gridColumn: 'span 3',
-                    height: '60px',
-                    margin: '15px 1.2rem', /* 預留邊距，解決「切掉」與「寬度不足」感 */
-                    fontWeight: '700',
-                    boxShadow: '0 8px 25px rgba(0,0,0,0.1)'
-                  }}
-                >
+                <button className="key confirm" onClick={handleSave} style={{ background: activeType === 'income' ? 'var(--income)' : 'var(--expense)', borderRadius: '16px', fontSize: '1.2rem', color: '#fff', gridColumn: 'span 3', height: '60px', margin: '15px 1.2rem', fontWeight: '700', boxShadow: '0 8px 25px rgba(0,0,0,0.1)' }}>
                   確認保存
                 </button>
               </div>
@@ -340,39 +348,116 @@ export default function Home() {
         );
 
       case 'reports':
+        const currentSum = reportMainType === 'balance'
+          ? filteredReportTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) - filteredReportTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+          : doughnutData.total;
+
         return (
-          <div className="bank-view-container">
-            <header className="bank-header"><h1>財務報表</h1></header>
-            <div className="bank-tab-group" style={{ margin: '1rem 1.2rem' }}>
-              <button className={`bank-tab ${reportType === 'expense' ? 'active' : ''}`} onClick={() => setReportType('expense')}>支出</button>
-              <button className={`bank-tab ${reportType === 'income' ? 'active' : ''}`} onClick={() => setReportType('income')}>收入</button>
-              <button className={`bank-tab ${statsPeriod === 'year' ? 'active' : ''}`} onClick={() => setStatsPeriod(statsPeriod === 'month' ? 'year' : 'month')}>{statsPeriod === 'month' ? '本月' : '全年'}</button>
+          <div className="bank-view-container" style={{ background: '#fff' }}>
+            <div className="report-toggle-group">
+              <button className={`report-toggle-btn ${reportView === 'category' ? 'active' : ''}`} onClick={() => { setReportView('category'); setReportPeriod('month'); }}>分類報表</button>
+              <button className={`report-toggle-btn ${reportView === 'trend' ? 'active' : ''}`} onClick={() => { setReportView('trend'); setReportPeriod('month'); }}>收支趨勢</button>
             </div>
 
-            <div className="chart-container" style={{ margin: '0 1.2rem 1.5rem', height: '280px' }}>
-              {statsPeriod === 'month' ? (
-                <Doughnut data={doughnutData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 12 } } } } }} />
+            <div className="report-main-tabs">
+              <button className={`report-main-tab ${reportMainType === 'expense' ? 'active' : ''}`} onClick={() => setReportMainType('expense')}>支出</button>
+              <button className={`report-main-tab ${reportMainType === 'income' ? 'active' : ''}`} onClick={() => setReportMainType('income')}>收入</button>
+              <button className={`report-main-tab ${reportMainType === 'balance' ? 'active' : ''}`} onClick={() => setReportMainType('balance')}>結餘</button>
+            </div>
+
+            <div className="sub-filter-row">
+              {reportView === 'category' ? (
+                <>
+                  <button className={`sub-filter-pill ${reportPeriod === 'month' ? 'active' : ''}`} onClick={() => setReportPeriod('month')}>月分類</button>
+                  <button className={`sub-filter-pill ${reportPeriod === 'year' ? 'active' : ''}`} onClick={() => setReportPeriod('year')}>年分類</button>
+                </>
               ) : (
-                <Bar data={barData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f2f2f7' } } } }} />
+                <>
+                  <button className={`sub-filter-pill ${reportPeriod === 'month' ? 'active' : ''}`} onClick={() => setReportPeriod('month')}>日支出</button>
+                  <button className={`sub-filter-pill ${reportPeriod === 'year' ? 'active' : ''}`} onClick={() => setReportPeriod('year')}>月支出</button>
+                </>
               )}
             </div>
 
-            <div className="bank-card" style={{ flex: 1, marginBottom: '20px', borderRadius: '24px' }}>
-              <h3 style={{ fontSize: '1.1rem', marginBottom: '1.2rem' }}>分類明細</h3>
-              {categories.filter(c => c.type === reportType).map(c => {
-                const total = transactions.filter(t => t.categoryId === c.id && (statsPeriod === 'month' ? new Date(t.id).getMonth() === new Date().getMonth() : true)).reduce((sum, t) => sum + t.amount, 0);
-                if (total === 0) return null;
-                return (
-                  <div key={c.id} className="info-row" style={{ padding: '16px 0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '1.5rem' }}>{c.icon}</span>
-                      <span style={{ fontSize: '1rem', fontWeight: '500' }}>{c.label}</span>
-                    </div>
-                    <span style={{ fontSize: '1.1rem', fontWeight: '700', color: '#1c1c1e' }}>${total.toLocaleString()}</span>
-                  </div>
-                );
-              })}
+            <div className="date-picker-row">
+              <div className="date-text">
+                <button onClick={() => changeReportDate(-1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❮</button>
+                <span>{reportDateStr}</span>
+                <button onClick={() => changeReportDate(1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❯</button>
+              </div>
+              <div className="total-summary-text">
+                {reportView === 'category' ? '總支出' : '月總計'}：
+                <span style={{ color: currentSum < 0 ? '#ff5252' : '#1c1c1e' }}> ${currentSum.toLocaleString()}</span>
+              </div>
             </div>
+
+            {reportView === 'category' ? (
+              <>
+                <div className="chart-center-container">
+                  <Doughnut
+                    data={doughnutData}
+                    options={{
+                      maintainAspectRatio: false,
+                      cutout: '75%',
+                      plugins: { legend: { display: false }, tooltip: { enabled: true } }
+                    }}
+                  />
+                  <div className="chart-center-info">
+                    <p className="center-label">{reportMainType === 'expense' ? '總支出' : '總收入'}</p>
+                    <p className="center-amount">${doughnutData.total.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="report-list">
+                  {categories.filter(c => c.type === (reportMainType === 'balance' ? 'expense' : reportMainType)).map(c => {
+                    const amount = filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((s, t) => s + t.amount, 0);
+                    if (amount === 0) return null;
+                    return (
+                      <div key={c.id} className="report-item">
+                        <div className="report-item-color-bar" style={{ background: c.color }}></div>
+                        <div className="report-item-icon-circle">{c.icon}</div>
+                        <div className="report-item-info">
+                          <div className="report-item-label">{c.label}</div>
+                        </div>
+                        <div className={`report-item-amount ${reportMainType === 'income' ? 'income' : 'expense'}`}>
+                          {reportMainType === 'income' ? '+' : '-'}${amount.toLocaleString()}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="chart-container">
+                  <Bar
+                    data={barData}
+                    options={{
+                      maintainAspectRatio: false,
+                      plugins: { legend: { display: false } },
+                      scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#f2f2f7' } } }
+                    }}
+                  />
+                </div>
+                <div className="report-list">
+                  {/* Show summary by day/month */}
+                  {barData.labels.map((label, idx) => {
+                    const val = barData.datasets[0].data[idx] as number;
+                    if (val === 0) return null;
+                    return (
+                      <div key={label} className="report-item">
+                        <div className="report-item-color-bar" style={{ background: '#ffb74d' }}></div>
+                        <div className="report-item-info">
+                          <div className="report-item-label">{reportDate.getFullYear()}/{reportDate.getMonth() + 1}/{label.replace('日', '')}</div>
+                        </div>
+                        <div className="report-item-amount expense">${val.toLocaleString()}</div>
+                      </div>
+                    );
+                  }).reverse()}
+                </div>
+              </>
+            )}
+            <div style={{ height: '100px' }}></div>
           </div>
         );
 
@@ -467,19 +552,29 @@ export default function Home() {
         {renderScreen()}
       </div>
 
-      {/* 底部導航欄 */}
+      {/* 底部導航欄 (V5) */}
       <nav className="tab-bar">
-        {[
-          { id: 'main', label: '主頁', icon: '🏠' },
-          { id: 'accounts', label: '帳戶', icon: '🏦' },
-          { id: 'reports', label: '報表', icon: '📊' },
-          { id: 'maintenance', label: '維護', icon: '⚙️' }
-        ].map(tab => (
-          <div key={tab.id} className={`tab-item ${currentScreen === tab.id ? 'active' : ''}`} onClick={() => { setCurrentScreen(tab.id as any); setSelectedTx(null); }}>
-            <span className="tab-icon">{tab.icon}</span>
-            <span className="tab-label">{tab.label}</span>
-          </div>
-        ))}
+        <div className={`tab-item ${currentScreen === 'main' ? 'active' : ''}`} onClick={() => { setCurrentScreen('main'); setSelectedTx(null); }}>
+          <span className="tab-icon">🏠</span>
+          <span className="tab-label">首頁</span>
+        </div>
+        <div className={`tab-item ${currentScreen === 'accounts' ? 'active' : ''}`} onClick={() => { setCurrentScreen('accounts'); setSelectedTx(null); }}>
+          <span className="tab-icon">👛</span>
+          <span className="tab-label">帳戶</span>
+        </div>
+
+        <div className="floating-tab-center">
+          <button className="floating-add-btn" onClick={() => setCurrentScreen('main')}>+</button>
+        </div>
+
+        <div className="tab-item" onClick={() => alert('開發中...')}>
+          <span className="tab-icon">🧾</span>
+          <span className="tab-label">發票</span>
+        </div>
+        <div className={`tab-item ${currentScreen === 'reports' ? 'active report' : ''}`} onClick={() => { setCurrentScreen('reports'); setSelectedTx(null); }}>
+          <span className="tab-icon">📈</span>
+          <span className="tab-label">報表</span>
+        </div>
       </nav>
 
       {/* 彈窗與表單 */}

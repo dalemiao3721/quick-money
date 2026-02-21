@@ -48,14 +48,12 @@ export const INITIAL_ACCOUNTS: Account[] = [
 ];
 
 export const INITIAL_EXPENSE_CATEGORIES: Category[] = [
-    { id: "food", label: "餐飲", icon: "🍱", color: "#FF6384", type: 'expense' },
+    { id: "misc", label: "其他雜項", icon: "💰", color: "#ff8a65", type: 'expense' },
+    { id: "gifts", label: "送禮&捐贈", icon: "🎁", color: "#aed581", type: 'expense' },
+    { id: "housing", label: "住家", icon: "🏠", color: "#4fc3f7", type: 'expense' },
+    { id: "family", label: "家庭", icon: "👨‍👩‍👧‍👦", color: "#ffab91", type: 'expense' },
     { id: "transport", label: "交通", icon: "🚌", color: "#36A2EB", type: 'expense' },
-    { id: "shopping", label: "購物", icon: "🛍️", color: "#FFCE56", type: 'expense' },
-    { id: "entertainment", label: "娛樂", icon: "🎮", color: "#4BC0C0", type: 'expense' },
-    { id: "daily", label: "日用", icon: "🧻", color: "#9966FF", type: 'expense' },
-    { id: "medical", label: "醫療", icon: "💊", color: "#FF9F40", type: 'expense' },
-    { id: "housing", label: "房租", icon: "🏠", color: "#C9CBCF", type: 'expense' },
-    { id: "other_exp", label: "其他", icon: "✨", color: "#4D5360", type: 'expense' },
+    { id: "food", label: "餐飲", icon: "🍱", color: "#FF6384", type: 'expense' },
 ];
 
 export const INITIAL_INCOME_CATEGORIES: Category[] = [
