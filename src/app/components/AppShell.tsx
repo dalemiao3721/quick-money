@@ -19,17 +19,19 @@ export default function AppShell({ children }: AppShellProps) {
     // 初次載入解鎖邏輯
     useEffect(() => {
         if (status === "authenticated") {
-            // 若 sessionStorage 有解鎖記錄（同一分頁），直接解鎖
             const unlocked = sessionStorage.getItem("qm_session_unlocked");
             if (unlocked === "true") {
                 setIsLocked(false);
             }
+        } else if (status === "unauthenticated") {
+            // 未登入時不鎖定，直接顯示主內容
+            setIsLocked(false);
         }
     }, [status]);
 
     // 活動監聽：重設計時器
     useEffect(() => {
-        if (isLocked) return;
+        if (isLocked || status !== "authenticated") return;
 
         const resetTimer = () => setLastActivity(Date.now());
         window.addEventListener("touchstart", resetTimer);
@@ -41,7 +43,7 @@ export default function AppShell({ children }: AppShellProps) {
                 setIsLocked(true);
                 sessionStorage.removeItem("qm_session_unlocked");
             }
-        }, 30000); // 每30秒檢查一次
+        }, 30000);
 
         return () => {
             window.removeEventListener("touchstart", resetTimer);
@@ -49,26 +51,27 @@ export default function AppShell({ children }: AppShellProps) {
             window.removeEventListener("keydown", resetTimer);
             clearInterval(interval);
         };
-    }, [isLocked, lastActivity]);
+    }, [isLocked, lastActivity, status]);
 
     const handleUnlock = () => {
         setIsLocked(false);
         sessionStorage.setItem("qm_session_unlocked", "true");
     };
 
+    // 載入中（短暫顯示 spinner）
     if (status === "loading") {
         return (
             <div style={{
                 minHeight: "100vh",
-                background: "linear-gradient(145deg, #1a1a2e 0%, #0f3460 100%)",
+                background: "#f2f2f7",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
             }}>
                 <div style={{
-                    width: "40px", height: "40px",
-                    border: "3px solid rgba(255,255,255,0.2)",
-                    borderTopColor: "white",
+                    width: "32px", height: "32px",
+                    border: "3px solid #e5e5ea",
+                    borderTopColor: "#007aff",
                     borderRadius: "50%",
                     animation: "spin 0.8s linear infinite",
                 }} />
@@ -79,15 +82,17 @@ export default function AppShell({ children }: AppShellProps) {
 
     return (
         <>
-            {isLocked && status === "authenticated" && (
+            {/* PIN 鎖定畫面：僅在已登入且被鎖定時顯示 */}
+            {status === "authenticated" && isLocked && (
                 <PinLock
                     onUnlock={handleUnlock}
                     userImage={session?.user?.image ?? undefined}
                     userName={session?.user?.name ?? undefined}
                 />
             )}
-            <div style={{ visibility: isLocked ? "hidden" : "visible" }}>
-                {/* 右上角使用者選單 */}
+
+            <div style={{ visibility: (status === "authenticated" && isLocked) ? "hidden" : "visible" }}>
+                {/* 右上角使用者選單（僅已登入時出現） */}
                 {status === "authenticated" && (
                     <div style={{
                         position: "fixed",
@@ -103,7 +108,7 @@ export default function AppShell({ children }: AppShellProps) {
                                 height: "36px",
                                 borderRadius: "50%",
                                 overflow: "hidden",
-                                border: "2px solid rgba(255,255,255,0.3)",
+                                border: "2px solid rgba(0,0,0,0.1)",
                             }}>
                                 {session?.user?.image ? (
                                     <img src={session.user.image} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -134,7 +139,7 @@ export default function AppShell({ children }: AppShellProps) {
                                     🔒 鎖定螢幕
                                 </button>
                                 <button
-                                    onClick={() => signOut({ callbackUrl: "/login" })}
+                                    onClick={() => signOut({ callbackUrl: "/" })}
                                     style={{ width: "100%", textAlign: "left", padding: "8px 12px", border: "none", background: "none", fontSize: "0.9rem", cursor: "pointer", borderRadius: "10px", color: "#ff453a" }}
                                 >
                                     🚪 登出
