@@ -4,6 +4,7 @@ export interface Category {
     icon: string;
     color: string;
     type: 'income' | 'expense';
+    budget?: number; // 每月預算
 }
 
 export interface Transaction {
@@ -18,6 +19,7 @@ export interface Transaction {
     time: string;
     note?: string;
     status?: string; // e.g., '已完成'
+    attachment?: string; // V4: Base64 image
 }
 
 export interface Account {
@@ -66,3 +68,16 @@ export const INITIAL_INCOME_CATEGORIES: Category[] = [
     { id: "part_time", label: "兼職", icon: "🛵", color: "#FF2D55", type: 'income' },
     { id: "other_inc", label: "其他", icon: "🧧", color: "#AF52DE", type: 'income' },
 ];
+
+export interface RecurringTemplate {
+    id: string;
+    label: string;
+    amount: number;
+    type: 'income' | 'expense';
+    categoryId: string;
+    accountId: string;
+    frequency: 'daily' | 'weekly' | 'monthly';
+    lastGenerated: string; // YYYY-MM-DD
+    active: boolean;
+}
+

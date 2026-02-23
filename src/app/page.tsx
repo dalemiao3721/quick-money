@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title } from 'chart.js';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
-import { Category, Transaction, Account, INITIAL_EXPENSE_CATEGORIES, INITIAL_INCOME_CATEGORIES, INITIAL_ACCOUNTS } from "./types";
+import { Category, Transaction, Account, RecurringTemplate, INITIAL_EXPENSE_CATEGORIES, INITIAL_INCOME_CATEGORIES, INITIAL_ACCOUNTS } from "./types";
 import {
   isFileSystemAccessSupported,
   pickBackupFolder,
@@ -48,10 +48,13 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>(INITIAL_ACCOUNTS);
+  const [recurringTemplates, setRecurringTemplates] = useState<RecurringTemplate[]>([]);
+  const [recurringForm, setRecurringForm] = useState<Partial<RecurringTemplate> | null>(null);
 
   // Home Input States (NEW)
   const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0]);
   const [txNote, setTxNote] = useState("");
+  const [txAttachment, setTxAttachment] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
   // Account Detail & Privacy
@@ -59,7 +62,7 @@ export default function Home() {
   const [hideBalance, setHideBalance] = useState(false);
 
   // Report States (V5 New)
-  const [reportView, setReportView] = useState<'category' | 'trend' | 'advanced'>('category');
+  const [reportView, setReportView] = useState<'category' | 'trend' | 'advanced' | 'budget'>('category');
   const [reportMainType, setReportMainType] = useState<'expense' | 'income' | 'balance'>('expense');
   const [reportPeriod, setReportPeriod] = useState<'day' | 'month' | 'year'>('month'); // category: month/year, trend: day/month
   const [reportDate, setReportDate] = useState(new Date());
@@ -80,7 +83,7 @@ export default function Home() {
   const [transferFee, setTransferFee] = useState("0");
 
   // Forms for Maintenance
-  const [catForm, setCatForm] = useState<{ show: boolean, type: 'income' | 'expense', label: string, icon: string, id?: string } | null>(null);
+  const [catForm, setCatForm] = useState<{ show: boolean, type: 'income' | 'expense', label: string, icon: string, id?: string, budget?: number } | null>(null);
   const [accForm, setAccForm] = useState<{ show: boolean, name: string, type: string, number: string, balance: number, icon: string, id?: string } | null>(null);
 
   // Backup States
@@ -97,6 +100,7 @@ export default function Home() {
     const savedTransactions = localStorage.getItem(`qm_${uid}_transactions_v3`) || localStorage.getItem("qm_transactions_v3");
     const savedCategories = localStorage.getItem(`qm_${uid}_categories`) || localStorage.getItem("qm_categories");
     const savedAccounts = localStorage.getItem(`qm_${uid}_accounts`) || localStorage.getItem("qm_accounts");
+    const savedRecurring = localStorage.getItem(`qm_${uid}_recurring`) || localStorage.getItem("qm_recurring");
 
     if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
     if (savedCategories) setCategories(JSON.parse(savedCategories));
@@ -105,9 +109,58 @@ export default function Home() {
       setCategories(initialCats);
     }
     if (savedAccounts) setAccounts(JSON.parse(savedAccounts));
+    if (savedRecurring) setRecurringTemplates(JSON.parse(savedRecurring));
     // 載入已儲存的備份資料夾名稱
     getSavedFolderName().then(name => setBackupFolderName(name)).catch(() => { });
   }, []);
+
+  // ── 定期收支自動生成邏輯 ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isMounted || recurringTemplates.length === 0) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    let hasChanges = false;
+    const newTxs: Transaction[] = [];
+    const updatedTemplates = recurringTemplates.map(tpl => {
+      if (!tpl.active) return tpl;
+
+      const lastDate = new Date(tpl.lastGenerated);
+      const todayDate = new Date(todayStr);
+      let shouldGen = false;
+
+      if (tpl.frequency === 'daily') {
+        shouldGen = todayDate > lastDate;
+      } else if (tpl.frequency === 'weekly') {
+        const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 3600 * 24));
+        shouldGen = diffDays >= 7;
+      } else if (tpl.frequency === 'monthly') {
+        shouldGen = todayDate.getMonth() !== lastDate.getMonth() || todayDate.getFullYear() !== lastDate.getFullYear();
+      }
+
+      if (shouldGen) {
+        hasChanges = true;
+        const newId = Date.now() + Math.random();
+        newTxs.push({
+          id: newId,
+          amount: tpl.amount,
+          type: tpl.type,
+          categoryId: tpl.categoryId,
+          accountId: tpl.accountId,
+          date: todayStr.replace(/-/g, '/'),
+          time: "08:00",
+          note: `[定期] ${tpl.label}`,
+          status: "已完成"
+        });
+        return { ...tpl, lastGenerated: todayStr };
+      }
+      return tpl;
+    });
+
+    if (hasChanges) {
+      setTransactions(prev => [...newTxs, ...prev]);
+      setRecurringTemplates(updatedTemplates);
+    }
+  }, [isMounted, recurringTemplates]);
 
   useEffect(() => {
     if (!isMounted) return;
@@ -116,7 +169,8 @@ export default function Home() {
     localStorage.setItem(`qm_${uid}_transactions_v3`, JSON.stringify(transactions));
     localStorage.setItem(`qm_${uid}_categories`, JSON.stringify(categories));
     localStorage.setItem(`qm_${uid}_accounts`, JSON.stringify(accounts));
-  }, [transactions, categories, accounts, isMounted]);
+    localStorage.setItem(`qm_${uid}_recurring`, JSON.stringify(recurringTemplates));
+  }, [transactions, categories, accounts, recurringTemplates, isMounted]);
 
   // ── 備份相關函式 ────────────────────────────────────────────────────
   const getBackupData = useCallback(() => ({
@@ -125,7 +179,8 @@ export default function Home() {
     transactions,
     categories,
     accounts,
-  }), [transactions, categories, accounts]);
+    recurringTemplates,
+  }), [transactions, categories, accounts, recurringTemplates]);
 
   const handlePickFolder = useCallback(async () => {
     try {
@@ -257,8 +312,10 @@ export default function Home() {
       setSelectedAccountId(editingTx.accountId);
       if (editingTx.type === 'transfer' && editingTx.toAccountId) {
         setTransferToAccountId(editingTx.toAccountId);
-        // Note: We might need a fee field in Transaction if we want to edit it properly
       }
+      setTxAttachment(editingTx.attachment || null);
+    } else {
+      setTxAttachment(null);
     }
   }, [editingTx]);
 
@@ -352,6 +409,72 @@ export default function Home() {
     };
   }, [filteredReportTransactions, transactions, reportDate, reportPeriod, reportMainType]);
 
+  const handleExportCSV = useCallback(() => {
+    try {
+      // 標題行
+      const headers = ["日期", "時間", "類型", "類別", "帳戶", "金額", "備註", "狀態"];
+
+      // 資料列
+      const rows = transactions.map(t => {
+        const cat = categories.find(c => c.id === t.categoryId);
+        const acc = accounts.find(a => a.id === t.accountId);
+        const typeStr = t.type === 'expense' ? '支出' : (t.type === 'income' ? '收入' : '轉帳');
+
+        return [
+          t.date,
+          t.time,
+          typeStr,
+          cat?.label || '未知',
+          acc?.name || '未知',
+          t.amount,
+          `"${(t.note || '').replace(/"/g, '""')}"`, // 處理備註中的引號
+          t.status
+        ].join(",");
+      });
+
+      const csvContent = [headers.join(","), ...rows].join("\n");
+
+      // 加入 UTF-8 BOM (\uFEFF) 確保 Excel 開啟時顯示正確中文
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const now = new Date();
+      const filename = `quick-money-export-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}.csv`;
+
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Export CSV failed:", err);
+      alert("匯出失敗，請重試");
+    }
+  }, [transactions, categories, accounts]);
+
+  const handleSaveRecurring = () => {
+    if (!recurringForm || !recurringForm.label || !recurringForm.amount) return;
+    const tpl: RecurringTemplate = {
+      id: recurringForm.id || `rec_${Date.now()}`,
+      label: recurringForm.label!,
+      amount: recurringForm.amount!,
+      type: recurringForm.type as any || 'expense',
+      categoryId: recurringForm.categoryId || categories.find(c => c.type === (recurringForm.type || 'expense'))?.id || '',
+      accountId: recurringForm.accountId || accounts[0].id,
+      frequency: recurringForm.frequency || 'monthly',
+      lastGenerated: recurringForm.lastGenerated || new Date().toISOString().split('T')[0],
+      active: recurringForm.active ?? true,
+    };
+
+    if (recurringForm.id) {
+      setRecurringTemplates(prev => prev.map(p => p.id === tpl.id ? tpl : p));
+    } else {
+      setRecurringTemplates(prev => [...prev, tpl]);
+    }
+    setRecurringForm(null);
+  };
+
   const handleSave = () => {
     const numAmount = parseInt(amount);
     if (numAmount === 0) return;
@@ -368,7 +491,8 @@ export default function Home() {
         toAccountId: activeType === 'transfer' ? transferToAccountId : undefined,
         fee: activeType === 'transfer' ? parseInt(transferFee) : undefined,
         date: txDate,
-        note: txNote
+        note: txNote,
+        attachment: txAttachment || undefined
       };
       setTransactions(prev => prev.map(t => t.id === editingTx.id ? updatedTx : t));
 
@@ -396,7 +520,8 @@ export default function Home() {
           date: txDate,
           time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           note: txNote,
-          status: '已完成'
+          status: '已完成',
+          attachment: txAttachment || undefined
         };
 
         setTransactions(prev => [newTx, ...prev]);
@@ -415,7 +540,8 @@ export default function Home() {
           date: txDate,
           time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           note: txNote,
-          status: '已完成'
+          status: '已完成',
+          attachment: txAttachment || undefined
         };
 
         setTransactions(prev => [newTx, ...prev]);
@@ -426,10 +552,12 @@ export default function Home() {
           return a;
         }));
       }
+
     }
 
     setAmount("0");
     setTxNote("");
+    setTxAttachment(null);
     setTransferFee("0");
     setTxDate(new Date().toISOString().split('T')[0]);
     if (window.navigator.vibrate) window.navigator.vibrate([10]);
@@ -438,14 +566,15 @@ export default function Home() {
   const handleSaveCategory = () => {
     if (!catForm || !catForm.label) return;
     if (catForm.id) {
-      setCategories(prev => prev.map(c => c.id === catForm.id ? { ...c, label: catForm.label, icon: catForm.icon } : c));
+      setCategories(prev => prev.map(c => c.id === catForm.id ? { ...c, label: catForm.label, icon: catForm.icon, budget: catForm.budget } : c));
     } else {
       const newCat: Category = {
         id: Date.now().toString(),
         label: catForm.label,
         icon: catForm.icon || "✨",
         color: "#" + Math.floor(Math.random() * 16777215).toString(16),
-        type: catForm.type
+        type: catForm.type,
+        budget: catForm.budget
       };
       setCategories(prev => [...prev, newCat]);
     }
@@ -600,6 +729,17 @@ export default function Home() {
                           onChange={(e) => setTxNote(e.target.value)}
                           style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', outline: 'none' }}
                         />
+                        <label style={{ marginLeft: '4px', cursor: 'pointer', opacity: txAttachment ? 1 : 0.4, display: 'flex' }}>
+                          📸
+                          <input type="file" accept="image/*" hidden onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => setTxAttachment(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }} />
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -631,6 +771,17 @@ export default function Home() {
                           onChange={(e) => setTxNote(e.target.value)}
                           style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', color: '#1c1c1e', outline: 'none' }}
                         />
+                        <label style={{ marginLeft: '4px', cursor: 'pointer', opacity: txAttachment ? 1 : 0.4, display: 'flex' }}>
+                          📸
+                          <input type="file" accept="image/*" hidden onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => setTxAttachment(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }} />
+                        </label>
                       </div>
                     </div>
                   </>
@@ -949,6 +1100,7 @@ export default function Home() {
                 if (reportMainType === 'balance') setReportMainType('expense');
               }}>分類報表</button>
               <button className={`report-toggle-btn ${reportView === 'trend' ? 'active' : ''}`} onClick={() => { setReportView('trend'); setReportPeriod('month'); }}>收支趨勢</button>
+              <button className={`report-toggle-btn ${reportView === 'budget' ? 'active' : ''}`} onClick={() => { setReportView('budget'); setReportPeriod('month'); }}>預算進度</button>
               <button className={`report-toggle-btn ${reportView === 'advanced' ? 'active' : ''}`}
                 style={reportView === 'advanced' ? { background: 'linear-gradient(135deg,#5856d6,#af52de)', color: '#fff' } : { color: '#5856d6' }}
                 onClick={() => { setReportView('advanced'); if (reportMainType === 'balance') setReportMainType('expense'); }}>✨ 進階</button>
@@ -1153,6 +1305,85 @@ export default function Home() {
                   </div>
                 )}
               </>
+            ) : reportView === 'budget' ? (
+              // ─── [V4] 預算管理視圖 ───
+              <div style={{ padding: '0 0 80px' }}>
+                <div className="date-picker-row" style={{ borderBottom: '1px solid #f2f2f7' }}>
+                  <div className="date-text">
+                    <button onClick={() => changeReportDate(-1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❮</button>
+                    <span>{reportDateStr} 預算</span>
+                    <button onClick={() => changeReportDate(1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❯</button>
+                  </div>
+                </div>
+
+                <div style={{ padding: '1rem' }}>
+                  {(() => {
+                    const budgetedCats = categories.filter(c => c.type === 'expense' && c.budget && c.budget > 0);
+                    if (budgetedCats.length === 0) {
+                      return (
+                        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#c7c7cc' }}>
+                          <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎯</p>
+                          <p>尚未設定任何支出預算</p>
+                          <p style={{ fontSize: '0.8rem', marginTop: '5px' }}>請至「維護 &gt; 分類設定」中設定每月預算</p>
+                        </div>
+                      );
+                    }
+
+                    const totalBudget = budgetedCats.reduce((s, c) => s + (c.budget || 0), 0);
+                    const totalSpent = budgetedCats.reduce((s, c) => {
+                      return s + filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((sum, t) => sum + t.amount, 0);
+                    }, 0);
+                    const percent = Math.min(100, Math.round((totalSpent / totalBudget) * 100)) || 0;
+
+                    return (
+                      <>
+                        {/* 總預算概覽 */}
+                        <div style={{ background: 'linear-gradient(135deg, #2c2c2e, #1c1c1e)', borderRadius: '24px', padding: '1.5rem', marginBottom: '1.5rem', color: '#fff', boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}>
+                          <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '8px' }}>總預算執行率</p>
+                          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', marginBottom: '1rem' }}>
+                            <span style={{ fontSize: '2.2rem', fontWeight: '800' }}>{percent}%</span>
+                            <span style={{ fontSize: '0.9rem', paddingBottom: '8px', opacity: 0.8 }}>${totalSpent.toLocaleString()} / ${totalBudget.toLocaleString()}</span>
+                          </div>
+                          <div style={{ height: '10px', background: 'rgba(255,255,255,0.15)', borderRadius: '5px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${percent}%`, background: percent > 90 ? '#ff453a' : '#32d74b', transition: 'width 0.8s ease-out' }} />
+                          </div>
+                        </div>
+
+                        {/* 分類預算列表 */}
+                        <h4 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '1rem', color: '#1c1c1e' }}>分類進度</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {budgetedCats.map(c => {
+                            const spent = filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((sum, t) => sum + t.amount, 0);
+                            const bPercent = Math.round((spent / (c.budget || 1)) * 100);
+                            const remaining = (c.budget || 0) - spent;
+                            return (
+                              <div key={c.id} style={{ background: '#fff', padding: '14px', borderRadius: '18px', border: '1px solid #f2f2f7' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontSize: '1.2rem' }}>{c.icon}</span>
+                                    <span style={{ fontWeight: '700', fontSize: '0.95rem' }}>{c.label}</span>
+                                  </div>
+                                  <div style={{ textAlign: 'right' }}>
+                                    <span style={{ fontWeight: '700', color: bPercent > 100 ? '#ff453a' : '#1c1c1e' }}>${spent.toLocaleString()}</span>
+                                    <span style={{ fontSize: '0.75rem', color: '#8e8e93' }}> / ${c.budget?.toLocaleString()}</span>
+                                  </div>
+                                </div>
+                                <div style={{ height: '6px', background: '#f2f2f7', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
+                                  <div style={{ height: '100%', width: `${Math.min(100, bPercent)}%`, background: bPercent > 100 ? '#ff453a' : (bPercent > 80 ? '#ff9500' : c.color) }} />
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                                  <span style={{ color: bPercent > 100 ? '#ff453a' : '#8e8e93' }}>{bPercent > 100 ? `超支 $${Math.abs(remaining).toLocaleString()}` : `剩餘 $${remaining.toLocaleString()}`}</span>
+                                  <span style={{ fontWeight: '600', color: bPercent > 100 ? '#ff453a' : '#8e8e93' }}>{bPercent}%</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
             ) : (
               // ── 原有分類 / 趨勢報表 ──
               <>
@@ -1497,6 +1728,43 @@ export default function Home() {
               </div>
             </div>
 
+            {/* 定期收支設定 (V4) */}
+            <div className="bank-card" style={{ borderRadius: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
+                <h3 style={{ fontSize: '1.1rem' }}>📌 定期收支</h3>
+                <button
+                  onClick={() => setRecurringForm({ active: true, frequency: 'monthly', type: 'expense', amount: 0, label: '', categoryId: categories.find(c => c.type === 'expense')?.id, accountId: accounts[0].id })}
+                  style={{ color: '#007aff', fontWeight: '700', border: 'none', background: 'none', fontSize: '0.9rem' }}
+                >
+                  + 新增範本
+                </button>
+              </div>
+              {recurringTemplates.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#c7c7cc', fontSize: '0.85rem', padding: '1rem 0' }}>尚無定期收支項目</p>
+              ) : (
+                recurringTemplates.map(tpl => (
+                  <div key={tpl.id} className="info-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: tpl.active ? '#e8f9e8' : '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {tpl.active ? '⏰' : '⏸️'}
+                      </div>
+                      <div>
+                        <p style={{ fontSize: '0.9rem', fontWeight: '600' }}>{tpl.label}</p>
+                        <p style={{ fontSize: '0.72rem', color: '#8e8e93' }}>
+                          {tpl.frequency === 'daily' ? '每日' : tpl.frequency === 'weekly' ? '每週' : '每月'} ·
+                          {tpl.type === 'expense' ? '支出' : '收入'} ${tpl.amount.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => setRecurringForm(tpl)} style={{ color: '#007aff', border: 'none', background: 'none', fontSize: '0.82rem', fontWeight: '600' }}>編輯</button>
+                      <button onClick={() => setRecurringTemplates(p => p.filter(x => x.id !== tpl.id))} style={{ color: '#ff453a', border: 'none', background: 'none', fontSize: '0.82rem', fontWeight: '600' }}>刪除</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
             {/* ☁️ 雲端備份 */}
             <div className="bank-card" style={{ borderRadius: '20px', paddingBottom: '1.5rem' }}>
               <h3 style={{ marginBottom: '0.4rem', fontSize: '1.1rem' }}>☁️ 資料備份</h3>
@@ -1626,6 +1894,24 @@ export default function Home() {
                 />
               </label>
             </div>
+
+            {/* 📊 報表匯出 */}
+            <div className="bank-card" style={{ borderRadius: '20px' }}>
+              <h3 style={{ marginBottom: '0.4rem', fontSize: '1.1rem' }}>📊 報表匯出</h3>
+              <p style={{ fontSize: '0.75rem', color: '#8e8e93', marginBottom: '1.2rem' }}>
+                將所有交易紀錄導出為 CSV 格式，支援 Excel。
+              </p>
+              <button
+                onClick={handleExportCSV}
+                style={{
+                  width: '100%', padding: '12px', background: '#5856d6',
+                  color: 'white', border: 'none', borderRadius: '14px',
+                  fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer'
+                }}
+              >
+                📊 匯出完整 CSV 報表
+              </button>
+            </div>
           </div>
         );
 
@@ -1671,6 +1957,20 @@ export default function Home() {
                   <span className="info-value" style={{ color: '#32d74b' }}>{selectedTx.status}</span>
                 </div>
               </div>
+
+              {selectedTx.note && (
+                <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '16px' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '5px' }}>備註</p>
+                  <p style={{ fontSize: '0.95rem', color: '#1c1c1e' }}>{selectedTx.note}</p>
+                </div>
+              )}
+
+              {selectedTx.attachment && (
+                <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px', textAlign: 'left' }}>附件證明</p>
+                  <img src={selectedTx.attachment} style={{ width: '100%', borderRadius: '16px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} alt="Attachment" />
+                </div>
+              )}
             </div>
 
             <div style={{ padding: '0 1.2rem', marginTop: '1rem' }}>
@@ -1721,6 +2021,17 @@ export default function Home() {
             <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>{catForm.id ? '編輯分類' : '新增分類'}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <input type="text" placeholder="名稱" value={catForm.label} onChange={e => setCatForm({ ...catForm, label: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem' }} />
+
+              <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px' }}>
+                <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '4px' }}>每月預算金額 (選填)</p>
+                <input
+                  type="number"
+                  placeholder="未設定"
+                  value={catForm.budget || ''}
+                  onChange={e => setCatForm({ ...catForm, budget: parseInt(e.target.value) || 0 })}
+                  style={{ width: '100%', padding: '10px', background: '#fff', border: '1px solid #e5e5ea', borderRadius: '12px', fontSize: '1rem' }}
+                />
+              </div>
 
               <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px' }}>
                 <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px' }}>選取推薦圖示 ({catForm.type === 'expense' ? '支出' : '收入'})</p>
@@ -1849,6 +2160,90 @@ export default function Home() {
             <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem' }}>
               <button className="bank-button-primary" style={{ background: '#eee', color: '#333', margin: 0, flex: 1 }} onClick={() => setAccForm(null)}>取消</button>
               <button className="bank-button-primary" style={{ margin: 0, flex: 1 }} onClick={handleSaveAccount}>儲存</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {recurringForm && (
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="modal-content" style={{ background: '#fff', borderRadius: '32px', maxWidth: '360px' }}>
+            <h2 style={{ marginBottom: '1.2rem', textAlign: 'center' }}>{recurringForm.id ? '編輯定期收支' : '新增定期收支'}</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <input
+                type="text" placeholder="名稱 (例如: 房租、薪資)"
+                value={recurringForm.label || ''}
+                onChange={e => setRecurringForm({ ...recurringForm, label: e.target.value })}
+                style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px' }}
+              />
+              <input
+                type="number" placeholder="金額"
+                value={recurringForm.amount || ''}
+                onChange={e => setRecurringForm({ ...recurringForm, amount: parseInt(e.target.value) || 0 })}
+                style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px' }}
+              />
+
+              <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px' }}>
+                <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '8px' }}>執行頻率</p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {['daily', 'weekly', 'monthly'].map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setRecurringForm({ ...recurringForm, frequency: f as any })}
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: '10px', border: 'none', fontSize: '0.85rem',
+                        background: recurringForm.frequency === f ? '#007aff' : '#fff',
+                        color: recurringForm.frequency === f ? '#fff' : '#000',
+                        fontWeight: '600'
+                      }}
+                    >
+                      {f === 'daily' ? '每日' : f === 'weekly' ? '每週' : '每月'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  value={recurringForm.type || 'expense'}
+                  onChange={e => setRecurringForm({ ...recurringForm, type: e.target.value as any, categoryId: categories.find(c => c.type === e.target.value)?.id })}
+                  style={{ flex: 1, padding: '12px', borderRadius: '14px', border: 'none', background: '#f2f2f7' }}
+                >
+                  <option value="expense">支出</option>
+                  <option value="income">收入</option>
+                </select>
+                <select
+                  value={recurringForm.categoryId || ''}
+                  onChange={e => setRecurringForm({ ...recurringForm, categoryId: e.target.value })}
+                  style={{ flex: 1, padding: '12px', borderRadius: '14px', border: 'none', background: '#f2f2f7' }}
+                >
+                  {categories.filter(c => c.type === (recurringForm.type || 'expense')).map(c => (
+                    <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <select
+                value={recurringForm.accountId || ''}
+                onChange={e => setRecurringForm({ ...recurringForm, accountId: e.target.value })}
+                style={{ width: '100%', padding: '12px', borderRadius: '14px', border: 'none', background: '#f2f2f7' }}
+              >
+                {accounts.map(a => (
+                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                ))}
+              </select>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '4px' }}>
+                <input
+                  type="checkbox"
+                  checked={recurringForm.active ?? true}
+                  onChange={e => setRecurringForm({ ...recurringForm, active: e.target.checked })}
+                />
+                啟用此項定期任務
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem' }}>
+              <button className="bank-button-primary" style={{ background: '#eee', color: '#333', margin: 0, flex: 1 }} onClick={() => setRecurringForm(null)}>取消</button>
+              <button className="bank-button-primary" style={{ margin: 0, flex: 1 }} onClick={handleSaveRecurring}>儲存</button>
             </div>
           </div>
         </div>
