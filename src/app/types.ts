@@ -19,7 +19,6 @@ export interface Transaction {
     time: string;
     note?: string;
     status?: string; // e.g., '已完成'
-    attachment?: string; // V4: Base64 image
 }
 
 export interface Account {

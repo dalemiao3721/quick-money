@@ -54,7 +54,6 @@ export default function Home() {
   // Home Input States (NEW)
   const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0]);
   const [txNote, setTxNote] = useState("");
-  const [txAttachment, setTxAttachment] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
   // Account Detail & Privacy
@@ -313,9 +312,6 @@ export default function Home() {
       if (editingTx.type === 'transfer' && editingTx.toAccountId) {
         setTransferToAccountId(editingTx.toAccountId);
       }
-      setTxAttachment(editingTx.attachment || null);
-    } else {
-      setTxAttachment(null);
     }
   }, [editingTx]);
 
@@ -491,8 +487,7 @@ export default function Home() {
         toAccountId: activeType === 'transfer' ? transferToAccountId : undefined,
         fee: activeType === 'transfer' ? parseInt(transferFee) : undefined,
         date: txDate,
-        note: txNote,
-        attachment: txAttachment || undefined
+        note: txNote
       };
       setTransactions(prev => prev.map(t => t.id === editingTx.id ? updatedTx : t));
 
@@ -520,8 +515,7 @@ export default function Home() {
           date: txDate,
           time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           note: txNote,
-          status: '已完成',
-          attachment: txAttachment || undefined
+          status: '已完成'
         };
 
         setTransactions(prev => [newTx, ...prev]);
@@ -540,8 +534,7 @@ export default function Home() {
           date: txDate,
           time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           note: txNote,
-          status: '已完成',
-          attachment: txAttachment || undefined
+          status: '已完成'
         };
 
         setTransactions(prev => [newTx, ...prev]);
@@ -557,7 +550,6 @@ export default function Home() {
 
     setAmount("0");
     setTxNote("");
-    setTxAttachment(null);
     setTransferFee("0");
     setTxDate(new Date().toISOString().split('T')[0]);
     if (window.navigator.vibrate) window.navigator.vibrate([10]);
@@ -729,17 +721,6 @@ export default function Home() {
                           onChange={(e) => setTxNote(e.target.value)}
                           style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', outline: 'none' }}
                         />
-                        <label style={{ marginLeft: '4px', cursor: 'pointer', opacity: txAttachment ? 1 : 0.4, display: 'flex' }}>
-                          📸
-                          <input type="file" accept="image/*" hidden onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setTxAttachment(reader.result as string);
-                              reader.readAsDataURL(file);
-                            }
-                          }} />
-                        </label>
                       </div>
                     </div>
                   </div>
@@ -771,17 +752,6 @@ export default function Home() {
                           onChange={(e) => setTxNote(e.target.value)}
                           style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '0.85rem', color: '#1c1c1e', outline: 'none' }}
                         />
-                        <label style={{ marginLeft: '4px', cursor: 'pointer', opacity: txAttachment ? 1 : 0.4, display: 'flex' }}>
-                          📸
-                          <input type="file" accept="image/*" hidden onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setTxAttachment(reader.result as string);
-                              reader.readAsDataURL(file);
-                            }
-                          }} />
-                        </label>
                       </div>
                     </div>
                   </>
@@ -1962,13 +1932,6 @@ export default function Home() {
                 <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '16px' }}>
                   <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '5px' }}>備註</p>
                   <p style={{ fontSize: '0.95rem', color: '#1c1c1e' }}>{selectedTx.note}</p>
-                </div>
-              )}
-
-              {selectedTx.attachment && (
-                <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-                  <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px', textAlign: 'left' }}>附件證明</p>
-                  <img src={selectedTx.attachment} style={{ width: '100%', borderRadius: '16px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} alt="Attachment" />
                 </div>
               )}
             </div>
