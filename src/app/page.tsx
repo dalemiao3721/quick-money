@@ -1,11 +1,21 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
-import { Doughnut, Bar } from 'react-chartjs-2';
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title } from 'chart.js';
+import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import { Category, Transaction, Account, INITIAL_EXPENSE_CATEGORIES, INITIAL_INCOME_CATEGORIES, INITIAL_ACCOUNTS } from "./types";
+import {
+  isFileSystemAccessSupported,
+  pickBackupFolder,
+  getSavedFolderName,
+  clearBackupFolder,
+  backupToFolder,
+  listBackupFiles,
+  readBackupFile,
+  downloadBackupFallback,
+} from "./hooks/useBackup";
 
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title);
 
 type AppScreen = 'main' | 'accounts' | 'reports' | 'maintenance' | 'tx_detail' | 'report_detail';
 
@@ -49,10 +59,18 @@ export default function Home() {
   const [hideBalance, setHideBalance] = useState(false);
 
   // Report States (V5 New)
-  const [reportView, setReportView] = useState<'category' | 'trend'>('category');
+  const [reportView, setReportView] = useState<'category' | 'trend' | 'advanced'>('category');
   const [reportMainType, setReportMainType] = useState<'expense' | 'income' | 'balance'>('expense');
   const [reportPeriod, setReportPeriod] = useState<'day' | 'month' | 'year'>('month'); // category: month/year, trend: day/month
   const [reportDate, setReportDate] = useState(new Date());
+
+  // 進階分析 state
+  const [advancedSubView, setAdvancedSubView] = useState<'prediction' | 'ranking' | 'custom'>('prediction');
+  const [rankingTopN, setRankingTopN] = useState(5);
+  const [customStart, setCustomStart] = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0];
+  });
+  const [customEnd, setCustomEnd] = useState(() => new Date().toISOString().split('T')[0]);
 
   // Reporting/Detail States
   const [reportDetailId, setReportDetailId] = useState<string | null>(null);
@@ -65,11 +83,20 @@ export default function Home() {
   const [catForm, setCatForm] = useState<{ show: boolean, type: 'income' | 'expense', label: string, icon: string, id?: string } | null>(null);
   const [accForm, setAccForm] = useState<{ show: boolean, name: string, type: string, number: string, balance: number, icon: string, id?: string } | null>(null);
 
+  // Backup States
+  const [backupFolderName, setBackupFolderName] = useState<string | null>(null);
+  const [backupStatus, setBackupStatus] = useState<{ type: 'success' | 'error' | 'info' | null; msg: string }>({ type: null, msg: '' });
+  const [backupFiles, setBackupFiles] = useState<string[] | null>(null);
+  const [showRestorePanel, setShowRestorePanel] = useState(false);
+  const [isBackupLoading, setIsBackupLoading] = useState(false);
+
   useEffect(() => {
     setIsMounted(true);
-    const savedTransactions = localStorage.getItem("qm_transactions_v3");
-    const savedCategories = localStorage.getItem("qm_categories");
-    const savedAccounts = localStorage.getItem("qm_accounts");
+    const { getCurrentUserId } = require('./components/AppShell');
+    const uid = getCurrentUserId();
+    const savedTransactions = localStorage.getItem(`qm_${uid}_transactions_v3`) || localStorage.getItem("qm_transactions_v3");
+    const savedCategories = localStorage.getItem(`qm_${uid}_categories`) || localStorage.getItem("qm_categories");
+    const savedAccounts = localStorage.getItem(`qm_${uid}_accounts`) || localStorage.getItem("qm_accounts");
 
     if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
     if (savedCategories) setCategories(JSON.parse(savedCategories));
@@ -78,14 +105,136 @@ export default function Home() {
       setCategories(initialCats);
     }
     if (savedAccounts) setAccounts(JSON.parse(savedAccounts));
+    // 載入已儲存的備份資料夾名稱
+    getSavedFolderName().then(name => setBackupFolderName(name)).catch(() => { });
   }, []);
 
   useEffect(() => {
     if (!isMounted) return;
-    localStorage.setItem("qm_transactions_v3", JSON.stringify(transactions));
-    localStorage.setItem("qm_categories", JSON.stringify(categories));
-    localStorage.setItem("qm_accounts", JSON.stringify(accounts));
+    const { getCurrentUserId } = require('./components/AppShell');
+    const uid = getCurrentUserId();
+    localStorage.setItem(`qm_${uid}_transactions_v3`, JSON.stringify(transactions));
+    localStorage.setItem(`qm_${uid}_categories`, JSON.stringify(categories));
+    localStorage.setItem(`qm_${uid}_accounts`, JSON.stringify(accounts));
   }, [transactions, categories, accounts, isMounted]);
+
+  // ── 備份相關函式 ────────────────────────────────────────────────────
+  const getBackupData = useCallback(() => ({
+    version: 3,
+    exportedAt: new Date().toISOString(),
+    transactions,
+    categories,
+    accounts,
+  }), [transactions, categories, accounts]);
+
+  const handlePickFolder = useCallback(async () => {
+    try {
+      const result = await pickBackupFolder();
+      if (result) {
+        setBackupFolderName(result.name);
+        setBackupStatus({ type: 'success', msg: `✅ 已設定資料夾：${result.name}` });
+      }
+    } catch (e: any) {
+      if (e.name === 'AbortError') return; // 使用者取消
+      if (e.message === 'NOT_SUPPORTED') {
+        setBackupStatus({ type: 'error', msg: '⚠️ 此瀏覽器不支援資料夾選取，請使用 Chrome/Edge' });
+      } else {
+        setBackupStatus({ type: 'error', msg: `❌ 設定失敗：${e.message}` });
+      }
+    }
+  }, []);
+
+  const handleBackupNow = useCallback(async () => {
+    setIsBackupLoading(true);
+    setBackupStatus({ type: null, msg: '' });
+    try {
+      if (isFileSystemAccessSupported() && backupFolderName) {
+        const filename = await backupToFolder(getBackupData());
+        setBackupStatus({ type: 'success', msg: `✅ 備份成功：${filename}` });
+      } else {
+        // Fallback：直接下載
+        downloadBackupFallback(getBackupData());
+        setBackupStatus({ type: 'info', msg: '📥 備份已下載，請手動移至 iCloud Drive' });
+      }
+    } catch (e: any) {
+      if (e.message === 'NO_FOLDER') {
+        setBackupStatus({ type: 'error', msg: '❌ 請先設定備份資料夾' });
+      } else if (e.message === 'PERMISSION_DENIED') {
+        setBackupStatus({ type: 'error', msg: '❌ 資料夾存取被拒，請重新設定' });
+      } else {
+        setBackupStatus({ type: 'error', msg: `❌ 備份失敗：${e.message}` });
+      }
+    } finally {
+      setIsBackupLoading(false);
+    }
+  }, [backupFolderName, getBackupData]);
+
+  const handleShowRestoreList = useCallback(async () => {
+    setIsBackupLoading(true);
+    try {
+      const files = await listBackupFiles();
+      setBackupFiles(files);
+      setShowRestorePanel(true);
+    } catch (e: any) {
+      if (e.message === 'NO_FOLDER') {
+        setBackupStatus({ type: 'error', msg: '❌ 請先設定備份資料夾' });
+      } else {
+        setBackupStatus({ type: 'error', msg: `❌ 讀取失敗：${e.message}` });
+      }
+    } finally {
+      setIsBackupLoading(false);
+    }
+  }, []);
+
+  const handleRestoreFile = useCallback(async (filename: string) => {
+    if (!window.confirm(`確定從 「${filename}」 還原？目前資料將被覆蓋。`)) return;
+    setIsBackupLoading(true);
+    try {
+      const data = await readBackupFile(filename);
+      if (data.transactions) setTransactions(data.transactions);
+      if (data.categories) setCategories(data.categories);
+      if (data.accounts) setAccounts(data.accounts);
+      setShowRestorePanel(false);
+      setBackupStatus({ type: 'success', msg: `✅ 已從 ${filename} 還原` });
+    } catch (e: any) {
+      setBackupStatus({ type: 'error', msg: `❌ 還原失敗：${e.message}` });
+    } finally {
+      setIsBackupLoading(false);
+    }
+  }, []);
+
+  const handleClearFolder = useCallback(async () => {
+    await clearBackupFolder();
+    setBackupFolderName(null);
+    setShowRestorePanel(false);
+    setBackupFiles(null);
+    setBackupStatus({ type: 'info', msg: '已清除備份資料夾設定' });
+  }, []);
+
+  // 從任意 JSON 檔案還原（file input picker，支援 Safari／所有瀏覽器）
+  const handleRestoreFromFile = useCallback((file: File) => {
+    if (!window.confirm(`確定從「${file.name}」還原？目前資料將被覆蓋。`)) return;
+    setIsBackupLoading(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        if (data.transactions) setTransactions(data.transactions);
+        if (data.categories) setCategories(data.categories);
+        if (data.accounts) setAccounts(data.accounts);
+        setBackupStatus({ type: 'success', msg: `✅ 已從「${file.name}」成功還原` });
+      } catch {
+        setBackupStatus({ type: 'error', msg: '❌ 檔案格式錯誤，請選取正確的備份 JSON 檔' });
+      } finally {
+        setIsBackupLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      setBackupStatus({ type: 'error', msg: '❌ 讀取檔案失敗' });
+      setIsBackupLoading(false);
+    };
+    reader.readAsText(file);
+  }, []);
 
   useEffect(() => {
     const typeCats = categories.filter(c => c.type === (activeType === 'transfer' ? 'expense' : activeType));
@@ -737,133 +886,384 @@ export default function Home() {
         );
 
       case 'reports':
+        // 線性回歸工具函式
+        const linReg = (data: number[]) => {
+          const n = data.length;
+          if (n < 2) return { predict: (x: number) => data[0] || 0 };
+          const sumX = n * (n - 1) / 2;
+          const sumY = data.reduce((s, v) => s + v, 0);
+          const sumXY = data.reduce((s, v, i) => s + i * v, 0);
+          const sumXX = data.reduce((s, _, i) => s + i * i, 0);
+          const denom = n * sumXX - sumX * sumX;
+          const slope = denom ? (n * sumXY - sumX * sumY) / denom : 0;
+          const intercept = (sumY - slope * sumX) / n;
+          return { predict: (x: number) => Math.max(0, Math.round(slope * x + intercept)) };
+        };
+
+        // 自訂時間範圍的交易
+        const customFiltered = transactions.filter(t => {
+          const d = t.date;
+          return d >= customStart && d <= customEnd;
+        });
+
+        // 預測資料：取最近 6 個月的每月收支
+        const predMonths: string[] = [];
+        const predExpense: number[] = [];
+        const predIncome: number[] = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(); d.setMonth(d.getMonth() - i);
+          const y = d.getFullYear(); const m = d.getMonth();
+          predMonths.push(`${d.getMonth() + 1}月`);
+          const txs = transactions.filter(t => { const td = new Date(t.id); return td.getFullYear() === y && td.getMonth() === m; });
+          predExpense.push(txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+          predIncome.push(txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
+        }
+        const expReg = linReg(predExpense);
+        const incReg = linReg(predIncome);
+        const futureLabels = [1, 2, 3].map(i => { const d = new Date(); d.setMonth(d.getMonth() + i); return `${d.getMonth() + 1}月(預)`; });
+        const futureExpense = [1, 2, 3].map(i => expReg.predict(6 + i - 1));
+        const futureIncome = [1, 2, 3].map(i => incReg.predict(6 + i - 1));
+
+        // 分類消費排名
+        const rankType = reportMainType === 'balance' ? 'expense' : reportMainType;
+        const rankSource = reportView === 'advanced' && advancedSubView === 'custom' ? customFiltered : filteredReportTransactions;
+        const categoryRanking = categories
+          .filter(c => c.type === rankType)
+          .map(c => ({ ...c, total: rankSource.filter(t => t.categoryId === c.id && t.type === rankType).reduce((s, t) => s + t.amount, 0) }))
+          .filter(c => c.total > 0)
+          .sort((a, b) => b.total - a.total)
+          .slice(0, rankingTopN);
+        const rankingMax = categoryRanking[0]?.total || 1;
+        const rankingGrandTotal = categoryRanking.reduce((s, c) => s + c.total, 0);
+
         const currentSum = reportMainType === 'balance'
           ? filteredReportTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) - filteredReportTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
           : doughnutData.total;
 
         return (
           <div className="bank-view-container" style={{ background: '#fff' }}>
-            <div className="report-toggle-group">
+            <div className="report-toggle-group" style={{ display: 'flex' }}>
               <button className={`report-toggle-btn ${reportView === 'category' ? 'active' : ''}`} onClick={() => {
                 setReportView('category');
                 setReportPeriod('month');
-                if (reportMainType === 'balance') setReportMainType('expense'); // 分類報表不支援結餘，自動跳回支出
+                if (reportMainType === 'balance') setReportMainType('expense');
               }}>分類報表</button>
               <button className={`report-toggle-btn ${reportView === 'trend' ? 'active' : ''}`} onClick={() => { setReportView('trend'); setReportPeriod('month'); }}>收支趨勢</button>
+              <button className={`report-toggle-btn ${reportView === 'advanced' ? 'active' : ''}`}
+                style={reportView === 'advanced' ? { background: 'linear-gradient(135deg,#5856d6,#af52de)', color: '#fff' } : { color: '#5856d6' }}
+                onClick={() => { setReportView('advanced'); if (reportMainType === 'balance') setReportMainType('expense'); }}>✨ 進階</button>
             </div>
 
-            <div className="report-main-tabs">
-              <button className={`report-main-tab ${reportMainType === 'expense' ? 'active' : ''}`} onClick={() => setReportMainType('expense')}>支出</button>
-              <button className={`report-main-tab ${reportMainType === 'income' ? 'active' : ''}`} onClick={() => setReportMainType('income')}>收入</button>
-              {reportView === 'trend' && (
-                <button className={`report-main-tab ${reportMainType === 'balance' ? 'active' : ''}`} onClick={() => setReportMainType('balance')}>結餘</button>
-              )}
-            </div>
-
-            <div className="sub-filter-row">
-              {reportView === 'category' ? (
-                <>
-                  <button className={`sub-filter-pill ${reportPeriod === 'month' ? 'active' : ''}`} onClick={() => setReportPeriod('month')}>月分類</button>
-                  <button className={`sub-filter-pill ${reportPeriod === 'year' ? 'active' : ''}`} onClick={() => setReportPeriod('year')}>年分類</button>
-                </>
-              ) : (
-                <>
-                  <button className={`sub-filter-pill ${reportPeriod === 'month' ? 'active' : ''}`} onClick={() => setReportPeriod('month')}>日支出</button>
-                  <button className={`sub-filter-pill ${reportPeriod === 'year' ? 'active' : ''}`} onClick={() => setReportPeriod('year')}>月支出</button>
-                </>
-              )}
-            </div>
-
-            <div className="date-picker-row">
-              <div className="date-text">
-                <button onClick={() => changeReportDate(-1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❮</button>
-                <span>{reportDateStr}</span>
-                <button onClick={() => changeReportDate(1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❯</button>
-              </div>
-              <div className="total-summary-text">
-                {reportView === 'category' ? '總支出' : '月總計'}：
-                <span style={{ color: currentSum < 0 ? '#ff5252' : '#1c1c1e' }}> ${currentSum.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {reportView === 'category' ? (
+            {/* 進階分析子 Tab */}
+            {reportView === 'advanced' ? (
               <>
-                <div className="chart-center-container">
-                  <Doughnut
-                    data={doughnutData}
-                    options={{
-                      maintainAspectRatio: false,
-                      cutout: '75%',
-                      plugins: { legend: { display: false }, tooltip: { enabled: true } }
-                    }}
-                  />
-                  <div className="chart-center-info">
-                    <p className="center-label">{reportMainType === 'expense' ? '總支出' : '總收入'}</p>
-                    <p className="center-amount">${doughnutData.total.toLocaleString()}</p>
+                {/* Sub-tabs */}
+                <div style={{ display: 'flex', gap: '8px', padding: '10px 1rem', background: '#f8f7ff', borderBottom: '1px solid #e5e5ea' }}>
+                  {(['prediction', 'ranking', 'custom'] as const).map((v, i) => (
+                    <button key={v} onClick={() => setAdvancedSubView(v)} style={{
+                      padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer',
+                      background: advancedSubView === v ? '#5856d6' : '#ede9ff',
+                      color: advancedSubView === v ? '#fff' : '#5856d6',
+                    }}>{['📈 趨勢預測', '🏆 消費排名', '📅 自訂範圍'][i]}</button>
+                  ))}
+                </div>
+
+                {/* ─── [這裡] 趨勢預測 ─── */}
+                {advancedSubView === 'prediction' && (
+                  <div style={{ padding: '0 0 80px' }}>
+                    <div style={{ padding: '12px 1rem', display: 'flex', gap: '8px', borderBottom: '1px solid #f2f2f7' }}>
+                      <button onClick={() => setReportMainType('expense')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer', background: reportMainType === 'expense' ? '#ff453a' : '#f2f2f7', color: reportMainType === 'expense' ? '#fff' : '#1c1c1e' }}>支出</button>
+                      <button onClick={() => setReportMainType('income')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer', background: reportMainType === 'income' ? '#007aff' : '#f2f2f7', color: reportMainType === 'income' ? '#fff' : '#1c1c1e' }}>收入</button>
+                    </div>
+                    <div style={{ padding: '1rem', fontSize: '0.8rem', color: '#8e8e93' }}>基於最近 6 個月線性回歸，預測未來 3 個月趨勢</div>
+                    <div style={{ height: '220px', padding: '0 1rem' }}>
+                      <Line
+                        data={{
+                          labels: [...predMonths, ...futureLabels],
+                          datasets: [
+                            {
+                              label: '實際',
+                              data: [...(reportMainType === 'expense' ? predExpense : predIncome), ...Array(3).fill(null)],
+                              borderColor: reportMainType === 'expense' ? '#ff453a' : '#007aff',
+                              backgroundColor: reportMainType === 'expense' ? '#ff453a22' : '#007aff22',
+                              borderWidth: 2.5, pointRadius: 4, tension: 0.3, fill: true,
+                            },
+                            {
+                              label: '預測',
+                              data: [...Array(5).fill(null), (reportMainType === 'expense' ? predExpense : predIncome)[5], ...(reportMainType === 'expense' ? futureExpense : futureIncome)],
+                              borderColor: '#5856d6',
+                              backgroundColor: '#5856d622',
+                              borderWidth: 2.5, pointRadius: 4, borderDash: [6, 4], tension: 0.3, fill: false,
+                            },
+                          ],
+                        }}
+                        options={{
+                          maintainAspectRatio: false,
+                          plugins: { legend: { position: 'bottom', labels: { font: { size: 12 } } }, tooltip: { callbacks: { label: ctx => `$${(ctx.raw as number)?.toLocaleString()}` } } },
+                          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#f2f2f7' }, ticks: { callback: v => `$${Number(v).toLocaleString()}` } } },
+                        }}
+                      />
+                    </div>
+                    {/* 預測明細 */}
+                    <div style={{ margin: '1rem', background: '#f8f7ff', borderRadius: '16px', padding: '1rem' }}>
+                      <p style={{ fontWeight: '700', fontSize: '0.9rem', marginBottom: '0.8rem', color: '#5856d6' }}>📈 未來預測</p>
+                      {(reportMainType === 'expense' ? futureExpense : futureIncome).map((v, i) => {
+                        const d = new Date(); d.setMonth(d.getMonth() + i + 1);
+                        return (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < 2 ? '1px solid #ede9ff' : 'none' }}>
+                            <span style={{ fontSize: '0.88rem', color: '#8e8e93' }}>{d.getFullYear()}/{d.getMonth() + 1}月</span>
+                            <span style={{ fontWeight: '700', color: reportMainType === 'expense' ? '#ff453a' : '#007aff' }}>${v.toLocaleString()}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── [這裡] 消費排名 ─── */}
+                {advancedSubView === 'ranking' && (
+                  <div style={{ padding: '0 0 80px' }}>
+                    {/* 籐選 支出/收入 + TopN */}
+                    <div style={{ padding: '12px 1rem', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #f2f2f7', flexWrap: 'wrap' }}>
+                      <button onClick={() => setReportMainType('expense')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer', background: reportMainType !== 'income' ? '#ff453a' : '#f2f2f7', color: reportMainType !== 'income' ? '#fff' : '#1c1c1e' }}>支出</button>
+                      <button onClick={() => setReportMainType('income')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer', background: reportMainType === 'income' ? '#007aff' : '#f2f2f7', color: reportMainType === 'income' ? '#fff' : '#1c1c1e' }}>收入</button>
+                      <span style={{ fontSize: '0.8rem', color: '#8e8e93', marginLeft: 'auto' }}>顯示前</span>
+                      {[3, 5, 10].map(n => (
+                        <button key={n} onClick={() => setRankingTopN(n)} style={{ padding: '4px 10px', borderRadius: '14px', border: 'none', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', background: rankingTopN === n ? '#5856d6' : '#ede9ff', color: rankingTopN === n ? '#fff' : '#5856d6' }}>{n}名</button>
+                      ))}
+                    </div>
+                    {/* 日期範圍 selector */}
+                    <div style={{ padding: '8px 1rem', display: 'flex', gap: '8px', borderBottom: '1px solid #f2f2f7' }}>
+                      <button onClick={() => setReportPeriod('month')} style={{ padding: '5px 12px', borderRadius: '14px', border: 'none', fontWeight: '600', fontSize: '0.78rem', cursor: 'pointer', background: reportPeriod === 'month' ? '#1c1c1e' : '#f2f2f7', color: reportPeriod === 'month' ? '#fff' : '#1c1c1e' }}>本月</button>
+                      <button onClick={() => setReportPeriod('year')} style={{ padding: '5px 12px', borderRadius: '14px', border: 'none', fontWeight: '600', fontSize: '0.78rem', cursor: 'pointer', background: reportPeriod === 'year' ? '#1c1c1e' : '#f2f2f7', color: reportPeriod === 'year' ? '#fff' : '#1c1c1e' }}>本年</button>
+                      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.83rem' }}>
+                        <button onClick={() => changeReportDate(-1)} style={{ border: 'none', background: 'none', fontSize: '1rem', cursor: 'pointer' }}>❮</button>
+                        <span style={{ fontWeight: '600' }}>{reportDateStr}</span>
+                        <button onClick={() => changeReportDate(1)} style={{ border: 'none', background: 'none', fontSize: '1rem', cursor: 'pointer' }}>❯</button>
+                      </div>
+                    </div>
+                    {/* 排名列表 */}
+                    <div style={{ padding: '1rem' }}>
+                      {categoryRanking.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '2rem', color: '#c7c7cc' }}>
+                          <p style={{ fontSize: '2rem' }}>🏆</p>
+                          <p style={{ fontSize: '0.85rem' }}>這個期間尚無資料</p>
+                        </div>
+                      ) : categoryRanking.map((c, i) => (
+                        <div key={c.id} style={{ marginBottom: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{
+                                width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: i === 0 ? '#ffd700' : i === 1 ? '#ddd' : i === 2 ? '#cd7f32' : '#f2f2f7',
+                                fontWeight: '900', fontSize: '0.72rem', flexShrink: 0, color: i < 3 ? '#fff' : '#8e8e93',
+                              }}>{i + 1}</span>
+                              <span style={{ fontSize: '1.1rem' }}>{c.icon && !c.icon.startsWith('data:') ? c.icon : '💰'}</span>
+                              <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>{c.label}</span>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <p style={{ fontWeight: '700', fontSize: '0.95rem', color: reportMainType === 'income' ? '#007aff' : '#ff453a' }}>${c.total.toLocaleString()}</p>
+                              <p style={{ fontSize: '0.72rem', color: '#8e8e93' }}>{Math.round(c.total / rankingGrandTotal * 100)}%</p>
+                            </div>
+                          </div>
+                          <div style={{ height: '8px', background: '#f2f2f7', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${c.total / rankingMax * 100}%`, background: c.color, borderRadius: '4px', transition: 'width 0.6s cubic-bezier(.4,0,.2,1)' }} />
+                          </div>
+                        </div>
+                      ))}
+                      {rankingGrandTotal > 0 && (
+                        <div style={{ marginTop: '0.5rem', padding: '10px 14px', background: '#f8f7ff', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                          <span style={{ color: '#8e8e93' }}>Top {rankingTopN} 合計</span>
+                          <span style={{ fontWeight: '700', color: '#5856d6' }}>${rankingGrandTotal.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── [這裡] 自訂範圍 ─── */}
+                {advancedSubView === 'custom' && (
+                  <div style={{ padding: '0 0 80px' }}>
+                    {/* 日期選擇器 */}
+                    <div style={{ padding: '1rem', background: '#f8f7ff', margin: '0', borderBottom: '1px solid #e5e5ea' }}>
+                      <p style={{ fontWeight: '700', fontSize: '0.88rem', marginBottom: '10px', color: '#5856d6' }}>📅 自訂時間範圍</p>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: '130px' }}>
+                          <p style={{ fontSize: '0.72rem', color: '#8e8e93', marginBottom: '4px' }}>開始</p>
+                          <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '10px', border: '1px solid #e5e5ea', fontSize: '0.9rem', background: '#fff' }} />
+                        </div>
+                        <span style={{ color: '#c7c7cc', fontWeight: '700', paddingTop: '16px' }}>—</span>
+                        <div style={{ flex: 1, minWidth: '130px' }}>
+                          <p style={{ fontSize: '0.72rem', color: '#8e8e93', marginBottom: '4px' }}>結束</p>
+                          <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '10px', border: '1px solid #e5e5ea', fontSize: '0.9rem', background: '#fff' }} />
+                        </div>
+                      </div>
+                    </div>
+                    {/* 攝要數據 */}
+                    {(() => {
+                      const cIncome = customFiltered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+                      const cExpense = customFiltered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                      const cBalance = cIncome - cExpense;
+                      return (
+                        <div style={{ display: 'flex', gap: '1px', background: '#e5e5ea', borderBottom: '8px solid #f2f2f7' }}>
+                          {[{ label: '收入', val: cIncome, color: '#007aff' }, { label: '支出', val: cExpense, color: '#ff453a' }, { label: '結餘', val: cBalance, color: cBalance >= 0 ? '#34c759' : '#ff453a' }].map(item => (
+                            <div key={item.label} style={{ flex: 1, padding: '14px 0', textAlign: 'center', background: '#fff' }}>
+                              <p style={{ fontSize: '0.72rem', color: '#8e8e93', marginBottom: '4px' }}>{item.label}</p>
+                              <p style={{ fontWeight: '800', fontSize: '1.1rem', color: item.color }}>${Math.abs(item.val).toLocaleString()}</p>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                    {/* 分類詳細列表 */}
+                    <div style={{ padding: '10px 1rem 0' }}>
+                      {['expense', 'income'].map(type => {
+                        const typedCats = categories.filter(c => c.type === type);
+                        const typedTotal = customFiltered.filter(t => t.type === type).reduce((s, t) => s + t.amount, 0);
+                        if (typedTotal === 0) return null;
+                        return (
+                          <div key={type} style={{ marginBottom: '1.5rem' }}>
+                            <p style={{ fontWeight: '700', fontSize: '0.88rem', color: type === 'expense' ? '#ff453a' : '#007aff', marginBottom: '8px', padding: '0 4px' }}>
+                              {type === 'expense' ? '支出明細' : '收入明細'}
+                            </p>
+                            {typedCats.map(c => {
+                              const amt = customFiltered.filter(t => t.categoryId === c.id && t.type === type).reduce((s, t) => s + t.amount, 0);
+                              if (amt === 0) return null;
+                              return (
+                                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 4px', borderBottom: '1px solid #f2f2f7' }}>
+                                  <span style={{ fontSize: '1.1rem' }}>{c.icon && !c.icon.startsWith('data:') ? c.icon : '💰'}</span>
+                                  <span style={{ flex: 1, fontSize: '0.88rem', fontWeight: '600' }}>{c.label}</span>
+                                  <span style={{ fontWeight: '700', color: type === 'expense' ? '#ff453a' : '#007aff', fontSize: '0.9rem' }}>${amt.toLocaleString()}</span>
+                                  <span style={{ fontSize: '0.72rem', color: '#c7c7cc', minWidth: '36px', textAlign: 'right' }}>{Math.round(amt / typedTotal * 100)}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                      {customFiltered.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '2rem', color: '#c7c7cc' }}>
+                          <p style={{ fontSize: '2rem' }}>🌃</p>
+                          <p style={{ fontSize: '0.85rem' }}>此時間範圍內無交易記錄</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              // ── 原有分類 / 趨勢報表 ──
+              <>
+                <div className="report-main-tabs">
+                  <button className={`report-main-tab ${reportMainType === 'expense' ? 'active' : ''}`} onClick={() => setReportMainType('expense')}>支出</button>
+                  <button className={`report-main-tab ${reportMainType === 'income' ? 'active' : ''}`} onClick={() => setReportMainType('income')}>收入</button>
+                  {reportView === 'trend' && (
+                    <button className={`report-main-tab ${reportMainType === 'balance' ? 'active' : ''}`} onClick={() => setReportMainType('balance')}>結餘</button>
+                  )}
+                </div>
+
+                <div className="sub-filter-row">
+                  {reportView === 'category' ? (
+                    <>
+                      <button className={`sub-filter-pill ${reportPeriod === 'month' ? 'active' : ''}`} onClick={() => setReportPeriod('month')}>月分類</button>
+                      <button className={`sub-filter-pill ${reportPeriod === 'year' ? 'active' : ''}`} onClick={() => setReportPeriod('year')}>年分類</button>
+                    </>
+                  ) : (
+                    <>
+                      <button className={`sub-filter-pill ${reportPeriod === 'month' ? 'active' : ''}`} onClick={() => setReportPeriod('month')}>日支出</button>
+                      <button className={`sub-filter-pill ${reportPeriod === 'year' ? 'active' : ''}`} onClick={() => setReportPeriod('year')}>月支出</button>
+                    </>
+                  )}
+                </div>
+
+                <div className="date-picker-row">
+                  <div className="date-text">
+                    <button onClick={() => changeReportDate(-1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❮</button>
+                    <span>{reportDateStr}</span>
+                    <button onClick={() => changeReportDate(1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem' }}>❯</button>
+                  </div>
+                  <div className="total-summary-text">
+                    {reportView === 'category' ? '總支出' : '月總計'}：
+                    <span style={{ color: currentSum < 0 ? '#ff5252' : '#1c1c1e' }}> ${currentSum.toLocaleString()}</span>
                   </div>
                 </div>
 
-                <div className="report-list">
-                  {categories.filter(c => c.type === (reportMainType === 'balance' ? 'expense' : reportMainType)).map(c => {
-                    const amount = filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((s, t) => s + t.amount, 0);
-                    if (amount === 0) return null;
-                    return (
-                      <div key={c.id} className="report-item" onClick={() => { setReportDetailId(c.id); setCurrentScreen('report_detail'); }} style={{ cursor: 'pointer' }}>
-                        <div className="report-item-color-bar" style={{ background: c.color }}></div>
-                        <div className="report-item-icon-circle">{c.icon}</div>
-                        <div className="report-item-info">
-                          <div className="report-item-label">{c.label}</div>
-                        </div>
-                        <div className={`report-item-amount ${reportMainType === 'income' ? 'income' : 'expense'}`}>
-                          {reportMainType === 'income' ? '+' : '-'}${amount.toLocaleString()}
-                        </div>
+                {reportView === 'category' ? (
+                  <>
+                    <div className="chart-center-container">
+                      <Doughnut
+                        data={doughnutData}
+                        options={{
+                          maintainAspectRatio: false,
+                          cutout: '75%',
+                          plugins: { legend: { display: false }, tooltip: { enabled: true } }
+                        }}
+                      />
+                      <div className="chart-center-info">
+                        <p className="center-label">{reportMainType === 'expense' ? '總支出' : '總收入'}</p>
+                        <p className="center-amount">${doughnutData.total.toLocaleString()}</p>
                       </div>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="chart-container">
-                  <Bar
-                    data={barData}
-                    options={{
-                      maintainAspectRatio: false,
-                      plugins: { legend: { display: false } },
-                      scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#f2f2f7' } } }
-                    }}
-                  />
-                </div>
-                <div className="report-list">
-                  {/* Show summary by day/month */}
-                  {barData.labels.map((label, idx) => {
-                    const val = barData.datasets[0].data[idx] as number;
-                    if (val === 0) return null;
-                    // Construct a date string for drilldown based on reportPeriod
-                    let detailId = '';
-                    if (reportPeriod === 'month') { // Daily trend
-                      detailId = `${reportDate.getFullYear()}-${(reportDate.getMonth() + 1).toString().padStart(2, '0')}-${label.replace('日', '').padStart(2, '0')}`;
-                    } else { // Monthly trend
-                      detailId = `${reportDate.getFullYear()}-${label.replace('月', '').padStart(2, '0')}`;
-                    }
+                    </div>
 
-                    return (
-                      <div key={label} className="report-item" onClick={() => {
-                        setReportDetailId(detailId);
-                        setCurrentScreen('report_detail');
-                      }} style={{ cursor: 'pointer' }}>
-                        <div className="report-item-color-bar" style={{ background: '#ffb74d' }}></div>
-                        <div className="report-item-info">
-                          <div className="report-item-label">{reportDate.getFullYear()}/{reportDate.getMonth() + 1}/{label.replace('日', '')}</div>
-                        </div>
-                        <div className="report-item-amount expense">${val.toLocaleString()}</div>
-                      </div>
-                    );
-                  }).reverse()}
-                </div>
+                    <div className="report-list">
+                      {categories.filter(c => c.type === (reportMainType === 'balance' ? 'expense' : reportMainType)).map(c => {
+                        const amount = filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((s, t) => s + t.amount, 0);
+                        if (amount === 0) return null;
+                        return (
+                          <div key={c.id} className="report-item" onClick={() => { setReportDetailId(c.id); setCurrentScreen('report_detail'); }} style={{ cursor: 'pointer' }}>
+                            <div className="report-item-color-bar" style={{ background: c.color }}></div>
+                            <div className="report-item-icon-circle">{c.icon}</div>
+                            <div className="report-item-info">
+                              <div className="report-item-label">{c.label}</div>
+                            </div>
+                            <div className={`report-item-amount ${reportMainType === 'income' ? 'income' : 'expense'}`}>
+                              {reportMainType === 'income' ? '+' : '-'}${amount.toLocaleString()}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="chart-container">
+                      <Bar
+                        data={barData}
+                        options={{
+                          maintainAspectRatio: false,
+                          plugins: { legend: { display: false } },
+                          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#f2f2f7' } } }
+                        }}
+                      />
+                    </div>
+                    <div className="report-list">
+                      {barData.labels.map((label, idx) => {
+                        const val = barData.datasets[0].data[idx] as number;
+                        if (val === 0) return null;
+                        let detailId = '';
+                        if (reportPeriod === 'month') {
+                          detailId = `${reportDate.getFullYear()}-${(reportDate.getMonth() + 1).toString().padStart(2, '0')}-${label.replace('日', '').padStart(2, '0')}`;
+                        } else {
+                          detailId = `${reportDate.getFullYear()}-${label.replace('月', '').padStart(2, '0')}`;
+                        }
+                        return (
+                          <div key={label} className="report-item" onClick={() => { setReportDetailId(detailId); setCurrentScreen('report_detail'); }} style={{ cursor: 'pointer' }}>
+                            <div className="report-item-color-bar" style={{ background: '#ffb74d' }}></div>
+                            <div className="report-item-info">
+                              <div className="report-item-label">{reportDate.getFullYear()}/{reportDate.getMonth() + 1}/{label.replace('日', '')}</div>
+                            </div>
+                            <div className="report-item-amount expense">${val.toLocaleString()}</div>
+                          </div>
+                        );
+                      }).reverse()}
+                    </div>
+                  </>
+                )}
+                <div style={{ height: '100px' }}></div>
               </>
             )}
-            <div style={{ height: '100px' }}></div>
           </div>
         );
 
@@ -1075,14 +1475,19 @@ export default function Home() {
                 <div>
                   <p style={{ fontWeight: '600', fontSize: '0.95rem' }}>螢幕鎖定密碼</p>
                   <p style={{ fontSize: '0.75rem', color: '#ff9500', marginTop: '2px' }}>
-                    {typeof window !== 'undefined' && !localStorage.getItem('qm_pin_changed')
-                      ? '⚠️ 仍在使用預設密碼 0000，請立即修改'
-                      : '✅ 已設定個人密碼'}
+                    {typeof window !== 'undefined' && (() => {
+                      try {
+                        const s = sessionStorage.getItem('qm_session');
+                        const uid = s ? JSON.parse(s).user?.id : null;
+                        return !localStorage.getItem(`qm_pin_changed_${uid || 'default'}`)
+                          ? '⚠️ 仍在使用預設密碼 0000，請立即修改'
+                          : '✅ 已設定個人密碼';
+                      } catch { return ''; }
+                    })()}
                   </p>
                 </div>
                 <button
                   onClick={() => {
-                    // 動態 import 避免 SSR 問題
                     import('./components/AppShell').then(m => m.triggerChangePin());
                   }}
                   style={{ padding: '8px 16px', background: '#007aff', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' }}
@@ -1090,6 +1495,136 @@ export default function Home() {
                   修改密碼
                 </button>
               </div>
+            </div>
+
+            {/* ☁️ 雲端備份 */}
+            <div className="bank-card" style={{ borderRadius: '20px', paddingBottom: '1.5rem' }}>
+              <h3 style={{ marginBottom: '0.4rem', fontSize: '1.1rem' }}>☁️ 資料備份</h3>
+              <p style={{ fontSize: '0.75rem', color: '#8e8e93', marginBottom: '1.2rem' }}>
+                {isFileSystemAccessSupported()
+                  ? '指定資料夾後可直接備份至 iCloud Drive 等位置'
+                  : '你的瀏覽器不支援資料夾選取，將以下載方式備份'}
+              </p>
+
+              {/* 狀態訊息 */}
+              {backupStatus.type && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: '12px', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: '600',
+                  background: backupStatus.type === 'success' ? '#e8f9f0' : backupStatus.type === 'error' ? '#fff0f0' : '#f0f6ff',
+                  color: backupStatus.type === 'success' ? '#1a7a4a' : backupStatus.type === 'error' ? '#c0392b' : '#005cbf',
+                }}>
+                  {backupStatus.msg}
+                </div>
+              )}
+
+              {/* 資料夾設定 */}
+              {isFileSystemAccessSupported() && (
+                <div className="info-row" style={{ alignItems: 'center' }}>
+                  <div>
+                    <p style={{ fontWeight: '600', fontSize: '0.9rem' }}>備份資料夾</p>
+                    <p style={{ fontSize: '0.75rem', color: backupFolderName ? '#007aff' : '#c7c7cc', marginTop: '2px' }}>
+                      {backupFolderName ? `📁 ${backupFolderName}` : '尚未設定'}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={handlePickFolder}
+                      style={{ padding: '7px 14px', background: '#007aff', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      {backupFolderName ? '重新選取' : '選取資料夾'}
+                    </button>
+                    {backupFolderName && (
+                      <button
+                        onClick={handleClearFolder}
+                        style={{ padding: '7px 12px', background: '#f2f2f7', color: '#ff453a', border: 'none', borderRadius: '10px', fontWeight: '600', fontSize: '0.82rem', cursor: 'pointer' }}
+                      >
+                        清除
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 備份 / 還原 按鈕 */}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
+                <button
+                  onClick={handleBackupNow}
+                  disabled={isBackupLoading}
+                  style={{
+                    flex: 1, padding: '12px', background: isBackupLoading ? '#c7c7cc' : '#34c759',
+                    color: 'white', border: 'none', borderRadius: '14px', fontWeight: '700',
+                    fontSize: '0.95rem', cursor: isBackupLoading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {isBackupLoading ? '處理中…' : '⬆️ 立即備份'}
+                </button>
+                {isFileSystemAccessSupported() && backupFolderName && (
+                  <button
+                    onClick={handleShowRestoreList}
+                    disabled={isBackupLoading}
+                    style={{
+                      flex: 1, padding: '12px', background: isBackupLoading ? '#c7c7cc' : '#ff9500',
+                      color: 'white', border: 'none', borderRadius: '14px', fontWeight: '700',
+                      fontSize: '0.95rem', cursor: isBackupLoading ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    ⬇️ 還原備份
+                  </button>
+                )}
+              </div>
+
+              {/* 還原清單面板 */}
+              {showRestorePanel && backupFiles !== null && (
+                <div style={{ marginTop: '1rem', background: '#f8f8fa', borderRadius: '14px', overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 14px', background: '#ff9500', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'white', fontWeight: '700', fontSize: '0.9rem' }}>選擇要還原的備份</span>
+                    <button onClick={() => setShowRestorePanel(false)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.1rem', cursor: 'pointer' }}>✕</button>
+                  </div>
+                  {backupFiles.length === 0 ? (
+                    <p style={{ padding: '1rem', textAlign: 'center', color: '#8e8e93', fontSize: '0.85rem' }}>📂 資料夾內沒有備份檔案</p>
+                  ) : (
+                    backupFiles.map(f => (
+                      <div
+                        key={f}
+                        onClick={() => handleRestoreFile(f)}
+                        style={{
+                          padding: '12px 14px', borderBottom: '1px solid #e5e5ea',
+                          cursor: 'pointer', fontSize: '0.82rem', fontWeight: '600', color: '#1c1c1e',
+                        }}
+                      >
+                        📄 {f.replace('quick-money-backup-', '').replace('.json', '').replace('-', ' ')}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* 分隔線 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '1rem 0 0.5rem' }}>
+                <div style={{ flex: 1, height: '1px', background: '#e5e5ea' }} />
+                <span style={{ fontSize: '0.75rem', color: '#c7c7cc', whiteSpace: 'nowrap' }}>或從檔案選取</span>
+                <div style={{ flex: 1, height: '1px', background: '#e5e5ea' }} />
+              </div>
+
+              {/* 從檔案還原（支援所有瀏覽器 / Safari / iCloud Drive） */}
+              <label style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                padding: '12px', borderRadius: '14px', border: '2px dashed #c7c7cc',
+                cursor: 'pointer', color: '#8e8e93', fontSize: '0.9rem', fontWeight: '600',
+                background: '#fafafa',
+              }}>
+                📂 選取備份 JSON 檔案還原
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleRestoreFromFile(file);
+                    e.target.value = ''; // 清空，允許再次選同一個檔案
+                  }}
+                />
+              </label>
             </div>
           </div>
         );
