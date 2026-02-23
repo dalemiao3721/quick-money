@@ -1,13 +1,20 @@
 :root {
   --primary: #007aff;
-  --bg: #0a0a0c;
-  --card-bg: #1c1c1e;
-  --text: #ffffff;
+  --bg: #f2f2f7;
+  /* 清爽底色 */
+  --card-bg: #ffffff;
+  /* 純白卡片 */
+  --text: #1c1c1e;
+  /* 深色文字 */
   --text-secondary: #8e8e93;
-  --accent: #32d74b;
-  /* 收入或成功色 */
+  --accent: #ff453a;
   --danger: #ff453a;
-  /* 支出色 */
+  --income: #32d74b;
+  --expense: #ff453a;
+  --bank-bg: #f2f2f7;
+  --bank-card: #ffffff;
+  --bank-text: #1c1c1e;
+  --bank-secondary: #8e8e93;
   --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -23,159 +30,163 @@ body {
   color: var(--text);
   font-family: var(--font-main);
   overflow: hidden;
-  /* 防止 PWA 橡皮筋效應 */
   height: 100vh;
   width: 100vw;
-}
-
-input,
-button {
-  font-family: inherit;
 }
 
 .app-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  max-width: 500px;
+  width: 100%;
+  /* 擴張寬度，不再限制 500px */
   margin: 0 auto;
   position: relative;
+  background: var(--bg);
 }
 
 /* Header & Summary */
 .header {
-  padding: 2rem 1.5rem 1rem;
-  background: linear-gradient(180deg, rgba(0, 122, 255, 0.1) 0%, rgba(10, 10, 12, 0) 100%);
+  padding: 1.5rem 1.2rem 1rem;
+  background: white;
+  /* 移除藍色漸層，改為全白清爽背景 */
 }
 
 .summary-card {
-  background: var(--card-bg);
+  background: #1c1c1e;
+  /* 保持深色卡片作為核心視覺焦點 */
   padding: 1.5rem;
   border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
   margin-bottom: 1rem;
+  color: white;
 }
 
 .summary-label {
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 0.9rem;
   margin-bottom: 0.5rem;
 }
 
 .summary-amount {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   letter-spacing: -1px;
+  color: white;
 }
 
 /* Numeric Input Area */
+.input-feedback-area {
+  background: var(--card-bg);
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .input-display {
-  flex: 1;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-end;
-  padding: 0 2rem;
+  justify-content: flex-end;
+  align-items: baseline;
+  margin-bottom: 0.8rem;
 }
 
 .amount-preview {
-  font-size: 4rem;
+  font-size: 2.5rem;
   font-weight: 800;
   color: var(--danger);
 }
 
 .currency-symbol {
-  font-size: 2rem;
+  font-size: 1.5rem;
   margin-right: 0.5rem;
   color: var(--text-secondary);
 }
 
-/* Category Grid */
-.category-section {
-  padding: 1rem;
+/* Category Mini Grid */
+.category-mini-grid {
+  display: flex;
+  overflow-x: auto;
+  gap: 10px;
+  padding-bottom: 5px;
+  scrollbar-width: none;
 }
 
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+.category-mini-grid::-webkit-scrollbar {
+  display: none;
 }
 
-.category-item {
+.category-mini-grid .category-item {
+  flex: 0 0 65px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: white;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 12px 4px;
-  border-radius: 16px;
-  background: var(--card-bg);
-  border: 1px solid transparent;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 4px;
+  border: 1px solid #e5e5ea;
+  transition: all 0.2s;
+  cursor: pointer;
 }
 
-.category-item:active {
-  transform: scale(0.92);
-  background: #2c2c2e;
-}
-
-.category-item.selected {
-  background: rgba(0, 122, 255, 0.15);
+.category-mini-grid .category-item.selected {
+  background: rgba(0, 122, 255, 0.1);
   border-color: var(--primary);
 }
 
-.category-icon {
-  font-size: 1.5rem;
-}
-
-.category-label {
+.category-mini-grid .category-label {
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: #1c1c1e;
+  /* 始終保持深色，避免在淡色背景下隱形 */
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-/* Custom Keyboard */
+.category-mini-grid .category-item.selected .category-label {
+  color: var(--primary);
+  /* 選中時使用藍色強調 */
+}
+
+.category-mini-grid .category-icon {
+  font-size: 1.2rem;
+}
+
 .keyboard {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
-  background: #2c2c2e;
+  background: #e5e5ea;
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 .key {
-  background: var(--bg);
-  height: min-content;
+  background: white;
+  height: 48px;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 500;
   transition: background 0.1s;
   border: none;
-  color: var(--text);
-  padding: 1.2rem;
-}
-
-.key:active {
-  background: #1c1c1e;
+  color: #1c1c1e;
+  /* 修正數字不可見問題：設定為深黑色 */
 }
 
 .key.confirm {
   background: var(--primary);
+  color: white;
   grid-column: span 3;
-}
-
-.key.delete {
-  font-size: 1.2rem;
+  font-weight: 700;
+  font-size: 1.1rem;
 }
 
 /* History List Section */
 .history-section {
-  flex: 1.2;
+  flex: 1;
   overflow-y: auto;
   padding: 1rem 1.5rem;
-  background: rgba(28, 28, 30, 0.5);
-  border-radius: 32px 32px 0 0;
-  margin-top: 1rem;
+  background: var(--bg);
+  margin-top: 0;
 }
 
 .history-header {
@@ -183,19 +194,6 @@ button {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.2rem;
-}
-
-.history-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.history-empty {
-  text-align: center;
-  color: var(--text-secondary);
-  padding-top: 2rem;
-  font-size: 0.9rem;
 }
 
 .history-item {
@@ -222,36 +220,68 @@ button {
   flex: 1;
 }
 
-.history-item-label {
-  font-weight: 500;
-  font-size: 1rem;
+.history-item-amount.expense {
+  color: var(--expense);
 }
 
-.history-item-time {
-  font-size: 0.8rem;
+.history-item-amount.income {
+  color: var(--income);
+}
+
+/* Type Selector */
+.type-selector {
+  display: flex;
+  background: #1c1c1e;
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.type-tab {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
-  margin-top: 2px;
+  font-weight: 600;
+  transition: all 0.2s;
 }
 
-.history-item-amount {
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: var(--danger);
+.type-tab.active.expense {
+  background: var(--expense);
+  color: white;
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.type-tab.active.income {
+  background: var(--income);
+  color: white;
 }
 
-/* Modal & Chart Styles */
+.type-tab.active.transfer {
+  background: #5856d6;
+  color: white;
+}
+
+.settings-fab {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 100;
+  background: rgba(44, 44, 46, 0.8);
+  backdrop-filter: blur(5px);
+  border: none;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -277,53 +307,16 @@ button {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
 
-.modal-close {
-  position: absolute;
-  top: 1.2rem;
-  right: 1.2rem;
-  background: #2c2c2e;
-  border: none;
-  color: var(--text);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  font-size: 1.2rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 
-.chart-container {
-  width: 100%;
-  height: 300px;
-  margin-top: 1rem;
-}
-
-.chart-legend {
-  margin-top: 1.5rem;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.legend-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.legend-dot-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes fadeIn {
@@ -334,4 +327,411 @@ button {
   to {
     opacity: 1;
   }
+}
+
+/* --- Bank Style UI Components (New V3) --- */
+.bank-view-container {
+  background: var(--bank-bg);
+  height: calc(100vh - 65px - env(safe-area-inset-bottom));
+  color: var(--bank-text);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.bank-header {
+  padding: 1.2rem 1.5rem;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid #e5e5ea;
+}
+
+.bank-header h1 {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.back-btn {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  background: none;
+  border: none;
+  color: #007aff;
+}
+
+.bank-card {
+  background: var(--bank-card);
+  margin: 0.8rem 1.2rem;
+  padding: 1.2rem;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.bank-tab-group {
+  display: flex;
+  background: white;
+  padding: 4px;
+  border-radius: 12px;
+  margin: 1rem 1.2rem;
+  border: 1px solid #e5e5ea;
+}
+
+.bank-tab {
+  flex: 1;
+  padding: 8px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--bank-secondary);
+  border-radius: 8px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.bank-tab.active {
+  background: #f2f2f7;
+  color: #e64a19;
+  font-weight: 600;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid #f2f2f7;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  color: var(--bank-secondary);
+  font-size: 0.85rem;
+}
+
+.info-value {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--bank-text);
+}
+
+.info-value.highlight {
+  color: #e64a19;
+}
+
+.bank-action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 1.2rem;
+  background: white;
+  margin-bottom: 0.8rem;
+}
+
+.bank-icon-circle {
+  width: 40px;
+  height: 40px;
+  background: #fdf2f2;
+  color: var(--accent);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.1rem;
+}
+
+.bank-icon-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #3a3a3c;
+  text-align: center;
+}
+
+.bank-button-primary {
+  background: #e64a19;
+  color: white;
+  width: calc(100% - 2.4rem);
+  margin: 1rem auto;
+  padding: 0.8rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: block;
+}
+
+/* --- Bottom Nav Tab Bar (Updated V5) --- */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(65px + env(safe-area-inset-bottom));
+  background: white;
+  border-top: 1px solid #e5e5ea;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 500;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.tab-item {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #8e8e93;
+  font-size: 0.65rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-item.active {
+  color: #007aff;
+}
+
+.tab-item.active.report {
+  color: #ffa000;
+}
+
+.tab-icon {
+  font-size: 1.4rem;
+}
+
+.floating-tab-center {
+  position: relative;
+  width: 70px;
+  height: 70px;
+  margin-top: -30px;
+  display: flex;
+  justify-content: center;
+}
+
+.floating-add-btn {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #ffb74d 0%, #ff8f00 100%);
+  border-radius: 50%;
+  border: none;
+  box-shadow: 0 4px 15px rgba(255, 143, 0, 0.4);
+  color: white;
+  font-size: 2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 600;
+}
+
+/* --- Report Specific UI (V5) --- */
+.report-toggle-group {
+  display: flex;
+  background: #e5e5ea;
+  padding: 3px;
+  border-radius: 12px;
+  margin: 1rem auto;
+  width: max-content;
+}
+
+.report-toggle-btn {
+  padding: 6px 16px;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #8e8e93;
+  background: transparent;
+  cursor: pointer;
+}
+
+.report-toggle-btn.active {
+  background: #ffb74d;
+  color: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.report-main-tabs {
+  display: flex;
+  border-bottom: 2px solid #e5e5ea;
+  margin-bottom: 1rem;
+}
+
+.report-main-tab {
+  flex: 1;
+  padding: 12px 0;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #8e8e93;
+  position: relative;
+  border: none;
+  background: none;
+}
+
+.report-main-tab.active {
+  color: #1c1c1e;
+}
+
+.report-main-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 20%;
+  right: 20%;
+  height: 3px;
+  background: #ff6d00;
+  border-radius: 3px;
+}
+
+.sub-filter-row {
+  display: flex;
+  gap: 10px;
+  padding: 0 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.sub-filter-pill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #e5e5ea;
+  background: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #a0a0a0;
+  cursor: pointer;
+}
+
+.sub-filter-pill.active {
+  background: #ffb74d;
+  color: white;
+  border-color: #ffb74d;
+}
+
+.date-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.date-text {
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.total-summary-text {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.chart-center-container {
+  position: relative;
+  width: 250px;
+  height: 250px;
+  margin: 0 auto 2rem;
+}
+
+.chart-center-info {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  width: 150px;
+}
+
+.center-label {
+  font-size: 0.8rem;
+  color: #8e8e93;
+}
+
+.center-amount {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1c1c1e;
+}
+
+.report-list {
+  padding: 0 1.2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f2f2f7;
+}
+
+.report-item-color-bar {
+  width: 5px;
+  height: 25px;
+  border-radius: 3px;
+  margin-right: 12px;
+}
+
+.report-item-icon-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #37474f;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-right: 12px;
+  color: white;
+  font-size: 1.2rem;
+}
+
+.report-item-info {
+  flex: 1;
+}
+
+.report-item-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1c1c1e;
+}
+
+.report-item-amount {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.report-item-amount.income {
+  color: #32d74b;
+}
+
+.report-item-amount.expense {
+  color: #ff5252;
+}
+
+.chart-container {
+  padding: 1rem;
+  background: white;
+  border-radius: 20px;
+  margin: 0 1.2rem 1.5rem;
+  height: 300px;
 }
