@@ -2130,7 +2130,16 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <input type="text" placeholder="帳戶名稱" value={accForm.name} onChange={e => setAccForm({ ...accForm, name: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem' }} />
               <input type="text" placeholder="類型 (例如: 現金, 往來戶口)" value={accForm.type} onChange={e => setAccForm({ ...accForm, type: e.target.value })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem' }} />
-              <input type="number" placeholder="初始餘額" value={accForm.balance} onChange={e => setAccForm({ ...accForm, balance: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem' }} />
+              <div>
+                <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '6px', paddingLeft: '4px' }}>初始帳戶金額</p>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={accForm.balance || ''}
+                  onChange={e => setAccForm({ ...accForm, balance: e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0) })}
+                  style={{ width: '100%', padding: '14px', background: '#f2f2f7', border: 'none', borderRadius: '16px', fontSize: '1rem', boxSizing: 'border-box' }}
+                />
+              </div>
 
               <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px' }}>
                 <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '10px' }}>選取預設圖示</p>
