@@ -557,7 +557,7 @@ export default function Home() {
 
   const handleDeleteTransaction = (txToDelete: Transaction) => {
     if (!window.confirm("確定要刪除這筆紀錄嗎？")) return;
-    
+
     setAccounts(prev => prev.map(a => {
       if (txToDelete.type === 'transfer') {
         const fee = txToDelete.fee || 0;
@@ -570,14 +570,31 @@ export default function Home() {
       }
       return a;
     }));
-    
+
     setTransactions(prev => prev.filter(t => t.id !== txToDelete.id));
     if (editingTx?.id === txToDelete.id) {
-        setEditingTx(null);
-        setAmount("0");
-        setTxNote("");
-        setTransferFee("0");
+      setEditingTx(null);
+      setAmount("0");
+      setTxNote("");
+      setTransferFee("0");
     }
+  };
+
+  const handleDeleteAccount = (accId: string) => {
+    const relatedTxCount = transactions.filter(t => t.accountId === accId || t.toAccountId === accId).length;
+    const msg = relatedTxCount > 0
+      ? `確定刪除此帳戶？\n相關的 ${relatedTxCount} 筆交易紀錄將一同刪除，此操作無法復原。`
+      : `確定要刪除此帳戶？`;
+    if (!window.confirm(msg)) return;
+
+    setTransactions(prev => prev.filter(t => t.accountId !== accId && t.toAccountId !== accId));
+    setAccounts(prev => {
+      const remaining = prev.filter(a => a.id !== accId);
+      if (selectedAccountId === accId && remaining.length > 0) {
+        setSelectedAccountId(remaining[0].id);
+      }
+      return remaining;
+    });
   };
 
   const handleSaveCategory = () => {
@@ -1684,7 +1701,7 @@ export default function Home() {
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={() => setAccForm({ ...acc, show: true, icon: acc.icon || "🏦" })} style={{ color: '#007aff', fontWeight: '600', border: 'none', background: 'none' }}>編輯</button>
-                    <button onClick={() => setAccounts(p => p.filter(a => a.id !== acc.id))} style={{ color: '#ff453a', fontWeight: '600', border: 'none', background: 'none' }}>刪除</button>
+                    <button onClick={() => handleDeleteAccount(acc.id)} style={{ color: '#ff453a', fontWeight: '600', border: 'none', background: 'none' }}>刪除</button>
                   </div>
                 </div>
               ))}
