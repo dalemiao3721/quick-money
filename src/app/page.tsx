@@ -504,6 +504,12 @@ export default function Home() {
     const numAmount = parseInt(amount);
     if (numAmount === 0) return;
 
+    // 防止同帳戶轉帳
+    if (activeType === 'transfer' && selectedAccountId === transferToAccountId) {
+      alert('轉出帳戶與轉入帳戶不能相同！');
+      return;
+    }
+
     const now = new Date();
     if (editingTx) {
       // 處理編輯模式 (暫不處理編輯過往轉帳的複雜餘額抵銷，直接更新紀錄)
@@ -775,6 +781,14 @@ export default function Home() {
                         <p style={{ fontSize: '1.1rem', fontWeight: '800', marginTop: '4px', color: '#007aff' }}>${parseInt(amount).toLocaleString()}</p>
                       </div>
                     </div>
+
+                    {/* 同帳戶警示 */}
+                    {selectedAccountId === transferToAccountId && (
+                      <div style={{ background: '#fff0f0', border: '1px solid #ff453a', borderRadius: '12px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                        <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                        <p style={{ fontSize: '0.85rem', color: '#ff453a', fontWeight: '600' }}>轉出帳戶與轉入帳戶不能相同</p>
+                      </div>
+                    )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', background: '#f2f2f7', borderRadius: '10px', padding: '8px 12px' }}>
