@@ -555,6 +555,31 @@ export default function Home() {
     if (window.navigator.vibrate) window.navigator.vibrate([10]);
   };
 
+  const handleDeleteTransaction = (txToDelete: Transaction) => {
+    if (!window.confirm("確定要刪除這筆紀錄嗎？")) return;
+    
+    setAccounts(prev => prev.map(a => {
+      if (txToDelete.type === 'transfer') {
+        const fee = txToDelete.fee || 0;
+        if (a.id === txToDelete.accountId) return { ...a, balance: a.balance + txToDelete.amount + fee };
+        if (a.id === txToDelete.toAccountId) return { ...a, balance: a.balance - txToDelete.amount };
+      } else {
+        if (a.id === txToDelete.accountId) {
+          return { ...a, balance: txToDelete.type === 'income' ? a.balance - txToDelete.amount : a.balance + txToDelete.amount };
+        }
+      }
+      return a;
+    }));
+    
+    setTransactions(prev => prev.filter(t => t.id !== txToDelete.id));
+    if (editingTx?.id === txToDelete.id) {
+        setEditingTx(null);
+        setAmount("0");
+        setTxNote("");
+        setTransferFee("0");
+    }
+  };
+
   const handleSaveCategory = () => {
     if (!catForm || !catForm.label) return;
     if (catForm.id) {
@@ -623,7 +648,10 @@ export default function Home() {
                   {editingTx ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <span style={{ background: '#ff9800', color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '800' }}>修改模式</span>
-                      <button onClick={() => { setEditingTx(null); setAmount("0"); setTxNote(""); }} style={{ color: 'white', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '8px', padding: '2px 8px', fontSize: '0.7rem' }}>取消</button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => handleDeleteTransaction(editingTx)} style={{ color: 'white', background: '#ff453a', border: 'none', borderRadius: '8px', padding: '2px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><span>🗑️</span> 刪除</button>
+                        <button onClick={() => { setEditingTx(null); setAmount("0"); setTxNote(""); }} style={{ color: 'white', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '8px', padding: '2px 8px', fontSize: '0.7rem' }}>取消</button>
+                      </div>
                     </div>
                   ) : null}
                   <p className="summary-label" style={{ marginBottom: '2px', fontSize: '0.8rem' }}>{selectedAccount.name} 餘額</p>
@@ -803,32 +831,42 @@ export default function Home() {
                         return (
                           <div
                             key={t.id}
-                            onClick={() => setEditingTx(t)}
                             style={{ background: '#fff', padding: '12px 1rem', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
                           >
-                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                              {cat?.icon && cat.icon.startsWith('data:image') ? (
-                                <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              ) : (
-                                <span style={{ fontSize: '1.1rem' }}>{cat?.icon || (t.type === 'transfer' ? '⇄' : '❓')}</span>
-                              )}
+                            <div
+                              onClick={() => setEditingTx(t)}
+                              style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}
+                            >
+                              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                                {cat?.icon && cat.icon.startsWith('data:image') ? (
+                                  <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <span style={{ fontSize: '1.1rem' }}>{cat?.icon || (t.type === 'transfer' ? '⇄' : '❓')}</span>
+                                )}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <p style={{ fontWeight: '700', fontSize: '0.95rem', marginBottom: '2px' }}>
+                                  {t.type === 'transfer' ? '轉帳項目' : cat?.label}
+                                </p>
+                                <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>
+                                  {t.type === 'transfer'
+                                    ? `${acc?.name} ➔ ${accounts.find(a => a.id === t.toAccountId)?.name}${t.note ? ` · ${t.note}` : ''}`
+                                    : `${acc?.name} ${t.note ? `· ${t.note}` : ''}`}
+                                </p>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <p style={{ fontWeight: '700', fontSize: '1rem', color: t.type === 'expense' ? '#ff453a' : (t.type === 'income' ? '#007aff' : '#8e8e93') }}>
+                                  {t.type === 'expense' ? '-' : (t.type === 'income' ? '+' : '⇄')}{t.amount.toLocaleString()}
+                                </p>
+                                <p style={{ fontSize: '0.65rem', color: '#c7c7cc' }}>{t.time}</p>
+                              </div>
                             </div>
-                            <div style={{ flex: 1 }}>
-                              <p style={{ fontWeight: '700', fontSize: '0.95rem', marginBottom: '2px' }}>
-                                {t.type === 'transfer' ? '轉帳項目' : cat?.label}
-                              </p>
-                              <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>
-                                {t.type === 'transfer'
-                                  ? `${acc?.name} ➔ ${accounts.find(a => a.id === t.toAccountId)?.name}${t.note ? ` · ${t.note}` : ''}`
-                                  : `${acc?.name} ${t.note ? `· ${t.note}` : ''}`}
-                              </p>
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                              <p style={{ fontWeight: '700', fontSize: '1rem', color: t.type === 'expense' ? '#ff453a' : (t.type === 'income' ? '#007aff' : '#8e8e93') }}>
-                                {t.type === 'expense' ? '-' : (t.type === 'income' ? '+' : '⇄')}{t.amount.toLocaleString()}
-                              </p>
-                              <p style={{ fontSize: '0.65rem', color: '#c7c7cc' }}>{t.time}</p>
-                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(t); }}
+                              style={{ background: 'none', border: 'none', color: '#ff453a', fontSize: '1.2rem', padding: '0 0 0 8px', flexShrink: 0 }}
+                            >
+                              🗑️
+                            </button>
                           </div>
                         );
                       })}
@@ -907,26 +945,36 @@ export default function Home() {
                         <div
                           key={t.id}
                           className="history-item"
-                          style={{ padding: '12px 1.2rem', borderBottom: '1px solid #f2f2f7', cursor: 'pointer' }}
-                          onClick={() => {
-                            setEditingTx(t);
-                            setCurrentScreen('main');
-                            setAccountDetailId(null);
-                          }}
+                          style={{ padding: '12px 1.2rem', borderBottom: '1px solid #f2f2f7', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         >
-                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#2c2c2e', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px', overflow: 'hidden' }}>
-                            {cat?.icon && cat.icon.startsWith('data:image') ? <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '1.2rem' }}>{cat?.icon}</span>}
+                          <div
+                            onClick={() => {
+                              setEditingTx(t);
+                              setCurrentScreen('main');
+                              setAccountDetailId(null);
+                            }}
+                            style={{ flex: 1, display: 'flex', alignItems: 'center' }}
+                          >
+                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#2c2c2e', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px', overflow: 'hidden', flexShrink: 0 }}>
+                              {cat?.icon && cat.icon.startsWith('data:image') ? <img src={cat.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '1.2rem' }}>{cat?.icon}</span>}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontWeight: '700', fontSize: '1rem' }}>{cat?.label}</p>
+                              <p style={{ fontSize: '0.8rem', color: '#8e8e93' }}>{acc.name}</p>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <p style={{ fontWeight: '700', color: t.type === 'expense' ? '#ff453a' : '#007aff' }}>
+                                {t.type === 'expense' ? '$-' : '$'}{t.amount.toLocaleString()}
+                              </p>
+                              <p style={{ fontSize: '0.7rem', color: '#8e8e93' }}>1:1</p>
+                            </div>
                           </div>
-                          <div style={{ flex: 1 }}>
-                            <p style={{ fontWeight: '700', fontSize: '1rem' }}>{cat?.label}</p>
-                            <p style={{ fontSize: '0.8rem', color: '#8e8e93' }}>{acc.name}</p>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <p style={{ fontWeight: '700', color: t.type === 'expense' ? '#ff453a' : '#007aff' }}>
-                              {t.type === 'expense' ? '$-' : '$'}{t.amount.toLocaleString()}
-                            </p>
-                            <p style={{ fontSize: '0.7rem', color: '#8e8e93' }}>1:1</p>
-                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(t); }}
+                            style={{ background: 'none', border: 'none', color: '#ff453a', fontSize: '1.2rem', padding: '0 0 0 12px', flexShrink: 0 }}
+                          >
+                            🗑️
+                          </button>
                         </div>
                       );
                     })}
