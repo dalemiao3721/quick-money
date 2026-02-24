@@ -18,6 +18,13 @@ export const metadata: Metadata = {
   description: "3秒完成一筆記帳，流暢如絲的財務管理體驗",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
