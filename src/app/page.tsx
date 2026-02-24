@@ -60,7 +60,11 @@ export default function Home() {
   const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
   const [hideBalance, setHideBalance] = useState(false);
 
-  // Report States (V5 New)
+  // 拖拉排序 States
+  const [draggedAccountIdx, setDraggedAccountIdx] = useState<number | null>(null);
+  const [draggedCategoryIdx, setDraggedCategoryIdx] = useState<number | null>(null);
+
+  // App Mount States (V5 New)
   const [reportView, setReportView] = useState<'category' | 'trend' | 'advanced' | 'budget'>('category');
   const [reportMainType, setReportMainType] = useState<'expense' | 'income' | 'balance' | 'transfer'>('expense');
   const [reportPeriod, setReportPeriod] = useState<'day' | 'month' | 'year'>('month'); // category: month/year, trend: day/month
@@ -1758,10 +1762,35 @@ export default function Home() {
             <header className="bank-header"><h1>設定與維護</h1></header>
 
             <div className="bank-card" style={{ borderRadius: '20px' }}>
-              <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem' }}>我的帳戶</h3>
-              {accounts.map(acc => (
-                <div key={acc.id} className="info-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem' }}>我的帳戶（可拖曳排序）</h3>
+              {accounts.map((acc, index) => (
+                <div
+                  key={acc.id}
+                  className="info-row"
+                  draggable
+                  onDragStart={() => setDraggedAccountIdx(index)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedAccountIdx === null || draggedAccountIdx === index) return;
+                    setAccounts(prev => {
+                      const newAccs = [...prev];
+                      const [draggedItem] = newAccs.splice(draggedAccountIdx, 1);
+                      newAccs.splice(index, 0, draggedItem);
+                      return newAccs;
+                    });
+                    setDraggedAccountIdx(null);
+                  }}
+                  onDragEnd={() => setDraggedAccountIdx(null)}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    opacity: draggedAccountIdx === index ? 0.5 : 1,
+                    transition: 'opacity 0.2s',
+                    cursor: 'grab'
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ cursor: 'grab', color: '#c7c7cc', padding: '0 5px' }}>≡</div>
                     <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                       {acc.icon && acc.icon.startsWith('data:image') ? (
                         <img src={acc.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1780,29 +1809,61 @@ export default function Home() {
             </div>
 
             <div className="bank-card" style={{ borderRadius: '20px' }}>
-              <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem' }}>分類設定 ({activeType === 'expense' ? '支出' : '收入'})</h3>
+              <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem' }}>分類設定（可拖曳排序） ({activeType === 'expense' ? '支出' : '收入'})</h3>
               <div className="type-selector" style={{ background: '#f2f2f7', marginBottom: '1.2rem' }}>
                 <button className={`type-tab ${activeType === 'expense' ? 'active expense' : ''}`} onClick={() => setActiveType('expense')}>支出</button>
                 <button className={`type-tab ${activeType === 'income' ? 'active income' : ''}`} onClick={() => setActiveType('income')}>收入</button>
               </div>
-              {categories.filter(c => c.type === (activeType === 'transfer' ? 'expense' : activeType)).map(c => (
-                <div key={c.id} className="info-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                      {c.icon && c.icon.startsWith('data:image') ? (
-                        <img src={c.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      ) : (
-                        c.icon
-                      )}
+              {categories.filter(c => c.type === (activeType === 'transfer' ? 'expense' : activeType)).map((c, displayIndex) => {
+                // Find actual index in original categories array
+                const realIndex = categories.findIndex(cat => cat.id === c.id);
+                return (
+                  <div
+                    key={c.id}
+                    className="info-row"
+                    draggable
+                    onDragStart={() => setDraggedCategoryIdx(realIndex)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedCategoryIdx === null || draggedCategoryIdx === realIndex) return;
+                      setCategories(prev => {
+                        const newCats = [...prev];
+                        const [draggedItem] = newCats.splice(draggedCategoryIdx, 1);
+                        // The item should be inserted at realIndex position
+                        // However, if draggedCategoryIdx < realIndex, the splicing shifts everything left.
+                        const insertIndex = draggedCategoryIdx < realIndex ? realIndex - 1 : realIndex;
+                        newCats.splice(realIndex, 0, draggedItem);
+                        return newCats;
+                      });
+                      setDraggedCategoryIdx(null);
+                    }}
+                    onDragEnd={() => setDraggedCategoryIdx(null)}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      opacity: draggedCategoryIdx === realIndex ? 0.5 : 1,
+                      transition: 'opacity 0.2s',
+                      cursor: 'grab'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ cursor: 'grab', color: '#c7c7cc', padding: '0 5px' }}>≡</div>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {c.icon && c.icon.startsWith('data:image') ? (
+                          <img src={c.icon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          c.icon
+                        )}
+                      </div>
+                      <span>{c.label}</span>
                     </div>
-                    <span>{c.label}</span>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button onClick={() => setCatForm({ ...c, show: true })} style={{ color: '#007aff', fontWeight: '600', border: 'none', background: 'none' }}>編輯</button>
+                      <button onClick={() => setCategories(p => p.filter(cat => cat.id !== c.id))} style={{ color: '#ff453a', fontWeight: '600', border: 'none', background: 'none' }}>刪除</button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => setCatForm({ ...c, show: true })} style={{ color: '#007aff', fontWeight: '600', border: 'none', background: 'none' }}>編輯</button>
-                    <button onClick={() => setCategories(p => p.filter(cat => cat.id !== c.id))} style={{ color: '#ff453a', fontWeight: '600', border: 'none', background: 'none' }}>刪除</button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               <button className="bank-button-primary" onClick={() => setCatForm({ show: true, type: activeType as any, label: '', icon: '✨' })} style={{ marginTop: '1.5rem', background: '#333' }}>+ 新增分類</button>
             </div>
 
