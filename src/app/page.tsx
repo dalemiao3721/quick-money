@@ -43,7 +43,7 @@ export default function Home() {
   const [amount, setAmount] = useState("0");
   const [activeType, setActiveType] = useState<'income' | 'expense' | 'transfer'>('expense');
   const [selectedCatId, setSelectedCatId] = useState("");
-  const [selectedAccountId, setSelectedAccountId] = useState("acc_1");
+  const [selectedAccountId, setSelectedAccountId] = useState("");
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -107,7 +107,14 @@ export default function Home() {
       const initialCats = [...INITIAL_EXPENSE_CATEGORIES, ...INITIAL_INCOME_CATEGORIES];
       setCategories(initialCats);
     }
-    if (savedAccounts) setAccounts(JSON.parse(savedAccounts));
+    if (savedAccounts) {
+      const parsed: Account[] = JSON.parse(savedAccounts);
+      setAccounts(parsed);
+      if (parsed.length > 0) setSelectedAccountId(parsed[0].id);
+    } else {
+      // 使用預設帳戶時，同步設定 selectedAccountId
+      setSelectedAccountId(INITIAL_ACCOUNTS[0]?.id || "");
+    }
     if (savedRecurring) setRecurringTemplates(JSON.parse(savedRecurring));
     // 載入已儲存的備份資料夾名稱
     getSavedFolderName().then(name => setBackupFolderName(name)).catch(() => { });
