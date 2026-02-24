@@ -62,7 +62,7 @@ export default function Home() {
 
   // Report States (V5 New)
   const [reportView, setReportView] = useState<'category' | 'trend' | 'advanced' | 'budget'>('category');
-  const [reportMainType, setReportMainType] = useState<'expense' | 'income' | 'balance'>('expense');
+  const [reportMainType, setReportMainType] = useState<'expense' | 'income' | 'balance' | 'transfer'>('expense');
   const [reportPeriod, setReportPeriod] = useState<'day' | 'month' | 'year'>('month'); // category: month/year, trend: day/month
   const [reportDate, setReportDate] = useState(new Date());
 
@@ -351,6 +351,28 @@ export default function Home() {
   // Doughnut Data (Category Report)
   const doughnutData = useMemo(() => {
     const dataMap: Record<string, number> = {};
+
+    if (reportMainType === 'transfer') {
+      // 轉帳：以轉出帳戶名稱分組
+      const filtered = filteredReportTransactions.filter(t => t.type === 'transfer');
+      filtered.forEach(t => {
+        const key = t.accountId;
+        dataMap[key] = (dataMap[key] || 0) + t.amount;
+      });
+      const accountKeys = Object.keys(dataMap);
+      const COLORS = ['#5856d6', '#007aff', '#34c759', '#ff9500', '#ff453a', '#af52de', '#ff2d55', '#00c7be'];
+      return {
+        labels: accountKeys.map(id => accounts.find(a => a.id === id)?.name || id),
+        datasets: [{
+          data: accountKeys.map(k => dataMap[k]),
+          backgroundColor: accountKeys.map((_, i) => COLORS[i % COLORS.length]),
+          borderWidth: 0,
+          hoverOffset: 4
+        }],
+        total: filtered.reduce((s, t) => s + t.amount, 0)
+      };
+    }
+
     const filtered = filteredReportTransactions.filter(t => t.type === reportMainType);
     filtered.forEach(t => {
       dataMap[t.categoryId] = (dataMap[t.categoryId] || 0) + t.amount;
@@ -369,7 +391,7 @@ export default function Home() {
       }],
       total: filtered.reduce((s, t) => s + t.amount, 0)
     };
-  }, [filteredReportTransactions, categories, reportMainType]);
+  }, [filteredReportTransactions, categories, accounts, reportMainType]);
 
   // Bar Data (Trend)
   const barData = useMemo(() => {
@@ -1432,6 +1454,9 @@ export default function Home() {
                 <div className="report-main-tabs">
                   <button className={`report-main-tab ${reportMainType === 'expense' ? 'active' : ''}`} onClick={() => setReportMainType('expense')}>支出</button>
                   <button className={`report-main-tab ${reportMainType === 'income' ? 'active' : ''}`} onClick={() => setReportMainType('income')}>收入</button>
+                  {reportView === 'category' && (
+                    <button className={`report-main-tab ${reportMainType === 'transfer' ? 'active' : ''}`} onClick={() => setReportMainType('transfer')}>轉帳</button>
+                  )}
                   {reportView === 'trend' && (
                     <button className={`report-main-tab ${reportMainType === 'balance' ? 'active' : ''}`} onClick={() => setReportMainType('balance')}>結餘</button>
                   )}
@@ -1475,28 +1500,54 @@ export default function Home() {
                         }}
                       />
                       <div className="chart-center-info">
-                        <p className="center-label">{reportMainType === 'expense' ? '總支出' : '總收入'}</p>
+                        <p className="center-label">{reportMainType === 'expense' ? '總支出' : reportMainType === 'income' ? '總收入' : '總轉帳'}</p>
                         <p className="center-amount">${doughnutData.total.toLocaleString()}</p>
                       </div>
                     </div>
 
                     <div className="report-list">
-                      {categories.filter(c => c.type === (reportMainType === 'balance' ? 'expense' : reportMainType)).map(c => {
-                        const amount = filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((s, t) => s + t.amount, 0);
-                        if (amount === 0) return null;
-                        return (
-                          <div key={c.id} className="report-item" onClick={() => { setReportDetailId(c.id); setCurrentScreen('report_detail'); }} style={{ cursor: 'pointer' }}>
-                            <div className="report-item-color-bar" style={{ background: c.color }}></div>
-                            <div className="report-item-icon-circle">{c.icon}</div>
-                            <div className="report-item-info">
-                              <div className="report-item-label">{c.label}</div>
+                      {reportMainType === 'transfer' ? (
+                        // 轉帳模式：以帳戶分組顯示
+                        accounts.map(acc => {
+                          const txs = filteredReportTransactions.filter(t => t.type === 'transfer' && (t.accountId === acc.id || t.toAccountId === acc.id));
+                          if (txs.length === 0) return null;
+                          const transferred = txs.filter(t => t.accountId === acc.id).reduce((s, t) => s + t.amount, 0);
+                          const received = txs.filter(t => t.toAccountId === acc.id).reduce((s, t) => s + t.amount, 0);
+                          return (
+                            <div key={acc.id} className="report-item">
+                              <div className="report-item-color-bar" style={{ background: '#5856d6' }}></div>
+                              <div className="report-item-icon-circle">{acc.icon && !acc.icon.startsWith('data:') ? acc.icon : '💰'}</div>
+                              <div className="report-item-info">
+                                <div className="report-item-label">{acc.name}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#8e8e93' }}>
+                                  {transferred > 0 && <span>轉出 ${transferred.toLocaleString()}　</span>}
+                                  {received > 0 && <span>轉入 ${received.toLocaleString()}</span>}
+                                </div>
+                              </div>
+                              <div className="report-item-amount" style={{ color: '#5856d6' }}>
+                                {txs.length} 筆
+                              </div>
                             </div>
-                            <div className={`report-item-amount ${reportMainType === 'income' ? 'income' : 'expense'}`}>
-                              {reportMainType === 'income' ? '+' : '-'}${amount.toLocaleString()}
+                          );
+                        })
+                      ) : (
+                        categories.filter(c => c.type === (reportMainType === 'balance' ? 'expense' : reportMainType as 'expense' | 'income')).map(c => {
+                          const amount = filteredReportTransactions.filter(t => t.categoryId === c.id && t.type !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                          if (amount === 0) return null;
+                          return (
+                            <div key={c.id} className="report-item" onClick={() => { setReportDetailId(c.id); setCurrentScreen('report_detail'); }} style={{ cursor: 'pointer' }}>
+                              <div className="report-item-color-bar" style={{ background: c.color }}></div>
+                              <div className="report-item-icon-circle">{c.icon}</div>
+                              <div className="report-item-info">
+                                <div className="report-item-label">{c.label}</div>
+                              </div>
+                              <div className={`report-item-amount ${reportMainType === 'income' ? 'income' : 'expense'}`}>
+                                {reportMainType === 'income' ? '+' : '-'}${amount.toLocaleString()}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
                   </>
                 ) : (
