@@ -76,6 +76,7 @@ export interface RecurringTemplate {
     categoryId: string;
     accountId: string;
     frequency: 'daily' | 'weekly' | 'monthly';
+    executionDay?: number; // weekly: 0=週日,1=週一…6=週六  monthly: 1~28(幾號)
     lastGenerated: string; // YYYY-MM-DD
     active: boolean;
 }

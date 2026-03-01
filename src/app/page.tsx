@@ -138,9 +138,12 @@ export default function Home() {
         shouldGen = todayDate > lastDate;
       } else if (tpl.frequency === 'weekly') {
         const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 3600 * 24));
-        shouldGen = diffDays >= 7;
+        const targetDay = tpl.executionDay ?? todayDate.getDay(); // 未設定則任意一天
+        shouldGen = diffDays >= 6 && todayDate.getDay() === targetDay && todayDate > lastDate;
       } else if (tpl.frequency === 'monthly') {
-        shouldGen = todayDate.getMonth() !== lastDate.getMonth() || todayDate.getFullYear() !== lastDate.getFullYear();
+        const targetDate = tpl.executionDay ?? todayDate.getDate(); // 未設定則任意一天
+        const diffMonth = todayDate.getMonth() !== lastDate.getMonth() || todayDate.getFullYear() !== lastDate.getFullYear();
+        shouldGen = diffMonth && todayDate.getDate() === targetDate;
       }
 
       if (shouldGen) {
@@ -488,6 +491,7 @@ export default function Home() {
       categoryId: recurringForm.categoryId || categories.find(c => c.type === (recurringForm.type || 'expense'))?.id || '',
       accountId: recurringForm.accountId || accounts[0].id,
       frequency: recurringForm.frequency || 'monthly',
+      executionDay: recurringForm.executionDay,
       lastGenerated: recurringForm.lastGenerated || new Date().toISOString().split('T')[0],
       active: recurringForm.active ?? true,
     };
@@ -1935,7 +1939,11 @@ export default function Home() {
                       <div>
                         <p style={{ fontSize: '0.9rem', fontWeight: '600' }}>{tpl.label}</p>
                         <p style={{ fontSize: '0.72rem', color: '#8e8e93' }}>
-                          {tpl.frequency === 'daily' ? '每日' : tpl.frequency === 'weekly' ? '每週' : '每月'} ·
+                          {tpl.frequency === 'daily' ? '每日' : tpl.frequency === 'weekly' ? '每週' : '每月'}
+                          {tpl.frequency === 'weekly' && tpl.executionDay !== undefined
+                            ? ` 週${'日一二三四五六'[tpl.executionDay]}` : ''}
+                          {tpl.frequency === 'monthly' && tpl.executionDay !== undefined
+                            ? ` ${tpl.executionDay} 號` : ''} ·
                           {tpl.type === 'expense' ? '支出' : '收入'} ${tpl.amount.toLocaleString()}
                         </p>
                       </div>
@@ -2374,7 +2382,7 @@ export default function Home() {
                   {['daily', 'weekly', 'monthly'].map(f => (
                     <button
                       key={f}
-                      onClick={() => setRecurringForm({ ...recurringForm, frequency: f as any })}
+                      onClick={() => setRecurringForm({ ...recurringForm, frequency: f as any, executionDay: undefined })}
                       style={{
                         flex: 1, padding: '8px', borderRadius: '10px', border: 'none', fontSize: '0.85rem',
                         background: recurringForm.frequency === f ? '#007aff' : '#fff',
@@ -2387,6 +2395,58 @@ export default function Home() {
                   ))}
                 </div>
               </div>
+
+              {/* 每週：選擇星期幾 */}
+              {recurringForm.frequency === 'weekly' && (
+                <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '8px' }}>每週執行星期</p>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {['日', '一', '二', '三', '四', '五', '六'].map((d, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setRecurringForm({ ...recurringForm, executionDay: i })}
+                        style={{
+                          flex: 1, padding: '8px 4px', borderRadius: '10px', border: 'none',
+                          fontSize: '0.78rem', fontWeight: '700',
+                          background: recurringForm.executionDay === i ? '#5856d6' : '#fff',
+                          color: recurringForm.executionDay === i ? '#fff' : (i === 0 || i === 6 ? '#ff453a' : '#000'),
+                        }}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                  {recurringForm.executionDay === undefined && (
+                    <p style={{ fontSize: '0.72rem', color: '#ff9500', marginTop: '6px' }}>⚠️ 請選擇執行星期</p>
+                  )}
+                </div>
+              )}
+
+              {/* 每月：選擇幾號 */}
+              {recurringForm.frequency === 'monthly' && (
+                <div style={{ background: '#f2f2f7', borderRadius: '16px', padding: '14px' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#8e8e93', marginBottom: '8px' }}>每月執行日期（號）</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                      <button
+                        key={d}
+                        onClick={() => setRecurringForm({ ...recurringForm, executionDay: d })}
+                        style={{
+                          width: 'calc(14.28% - 6px)', padding: '7px 0', borderRadius: '10px', border: 'none',
+                          fontSize: '0.78rem', fontWeight: '700',
+                          background: recurringForm.executionDay === d ? '#5856d6' : '#fff',
+                          color: recurringForm.executionDay === d ? '#fff' : '#000',
+                        }}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                  {recurringForm.executionDay === undefined && (
+                    <p style={{ fontSize: '0.72rem', color: '#ff9500', marginTop: '6px' }}>⚠️ 請選擇執行日期</p>
+                  )}
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: '8px' }}>
                 <select
