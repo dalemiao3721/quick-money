@@ -193,6 +193,16 @@ export default function Home() {
     if (hasChanges) {
       setTransactions(prev => [...newTxs, ...prev]);
       setRecurringTemplates(updatedTemplates);
+      // 同步更新對應的帳戶餘額
+      setAccounts(prev => prev.map(a => {
+        let diff = 0;
+        newTxs.forEach(tx => {
+          if (tx.accountId === a.id) {
+            diff += (tx.type === 'income' ? tx.amount : -tx.amount);
+          }
+        });
+        return diff !== 0 ? { ...a, balance: a.balance + diff } : a;
+      }));
     }
   }, [isMounted, recurringTemplates]);
 
@@ -508,6 +518,15 @@ export default function Home() {
 
   const handleSaveRecurring = () => {
     if (!recurringForm || !recurringForm.label || !recurringForm.amount) return;
+
+    // 將預設的上次生成日期設為昨天，這樣如果是設定今天執行，就會在自動生成邏輯中被檢查並觸發
+    let defaultLastGenerated = new Date().toISOString().split('T')[0];
+    if (!recurringForm.id && !recurringForm.lastGenerated) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      defaultLastGenerated = yesterday.toISOString().split('T')[0];
+    }
+
     const tpl: RecurringTemplate = {
       id: recurringForm.id || `rec_${Date.now()}`,
       label: recurringForm.label!,
@@ -517,7 +536,7 @@ export default function Home() {
       accountId: recurringForm.accountId || accounts[0].id,
       frequency: recurringForm.frequency || 'monthly',
       executionDay: recurringForm.executionDay,
-      lastGenerated: recurringForm.lastGenerated || new Date().toISOString().split('T')[0],
+      lastGenerated: recurringForm.lastGenerated || defaultLastGenerated,
       active: recurringForm.active ?? true,
     };
 
