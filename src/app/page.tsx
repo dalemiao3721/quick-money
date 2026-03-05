@@ -131,36 +131,61 @@ export default function Home() {
       if (!tpl.active) return tpl;
 
       const lastDate = new Date(tpl.lastGenerated);
-      const todayDate = new Date(todayStr);
-      let shouldGen = false;
+      // 確保從上次生成的「隔天」開始檢查，避免同一天重複生成
+      const startDate = new Date(lastDate);
+      startDate.setDate(startDate.getDate() + 1);
+      startDate.setHours(0, 0, 0, 0);
 
-      if (tpl.frequency === 'daily') {
-        shouldGen = todayDate > lastDate;
-      } else if (tpl.frequency === 'weekly') {
-        const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 3600 * 24));
-        const targetDay = tpl.executionDay ?? todayDate.getDay(); // 未設定則任意一天
-        shouldGen = diffDays >= 6 && todayDate.getDay() === targetDay && todayDate > lastDate;
-      } else if (tpl.frequency === 'monthly') {
-        const targetDate = tpl.executionDay ?? todayDate.getDate(); // 未設定則任意一天
-        const diffMonth = todayDate.getMonth() !== lastDate.getMonth() || todayDate.getFullYear() !== lastDate.getFullYear();
-        shouldGen = diffMonth && todayDate.getDate() === targetDate;
+      const todayDate = new Date(todayStr);
+      todayDate.setHours(0, 0, 0, 0);
+
+      const triggerDates: string[] = [];
+
+      // 迴圈檢查每一天
+      let cursorDate = new Date(startDate);
+      while (cursorDate <= todayDate) {
+        let shouldGen = false;
+        if (tpl.frequency === 'daily') {
+          shouldGen = true;
+        } else if (tpl.frequency === 'weekly') {
+          const targetDay = tpl.executionDay ?? cursorDate.getDay();
+          if (cursorDate.getDay() === targetDay) shouldGen = true;
+        } else if (tpl.frequency === 'monthly') {
+          const targetDate = tpl.executionDay ?? cursorDate.getDate();
+          if (cursorDate.getDate() === targetDate) {
+            shouldGen = true;
+          } else if (targetDate > 28) {
+            // 處理小月沒有 29, 30, 31 號的情況 (退回該月最後一天)
+            const lastDayOfMonth = new Date(cursorDate.getFullYear(), cursorDate.getMonth() + 1, 0).getDate();
+            if (cursorDate.getDate() === lastDayOfMonth && targetDate > lastDayOfMonth) {
+              shouldGen = true;
+            }
+          }
+        }
+
+        if (shouldGen) {
+          triggerDates.push(cursorDate.toISOString().split('T')[0]);
+        }
+        cursorDate.setDate(cursorDate.getDate() + 1);
       }
 
-      if (shouldGen) {
+      if (triggerDates.length > 0) {
         hasChanges = true;
-        const newId = Date.now() + Math.random();
-        newTxs.push({
-          id: newId,
-          amount: tpl.amount,
-          type: tpl.type,
-          categoryId: tpl.categoryId,
-          accountId: tpl.accountId,
-          date: todayStr.replace(/-/g, '/'),
-          time: "08:00",
-          note: `[定期] ${tpl.label}`,
-          status: "已完成"
+        triggerDates.forEach((tDate, index) => {
+          const newId = Date.now() + index + Math.random();
+          newTxs.push({
+            id: newId,
+            amount: tpl.amount,
+            type: tpl.type,
+            categoryId: tpl.categoryId,
+            accountId: tpl.accountId,
+            date: tDate.replace(/-/g, '/'),
+            time: "08:00",
+            note: `[定期] ${tpl.label}`,
+            status: "已完成"
+          });
         });
-        return { ...tpl, lastGenerated: todayStr };
+        return { ...tpl, lastGenerated: triggerDates[triggerDates.length - 1] };
       }
       return tpl;
     });
