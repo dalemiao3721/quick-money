@@ -27,6 +27,7 @@ export interface Account {
     type: string; // e.g., '往來戶口', '現金', '存款'
     number: string;
     balance: number;
+    initialBalance?: number; // 建立帳戶時的初始金額
     holderName?: string;
     icon?: string;
 }

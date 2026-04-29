@@ -377,7 +377,7 @@ export default function Home() {
   // Filtered transactions for report
   const filteredReportTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const d = new Date(t.id);
+      const d = new Date(t.date.replace(/\//g, '-'));
       const sameYear = d.getFullYear() === reportDate.getFullYear();
       const sameMonth = d.getMonth() === reportDate.getMonth();
 
@@ -442,7 +442,7 @@ export default function Home() {
       const daysInMonth = new Date(reportDate.getFullYear(), reportDate.getMonth() + 1, 0).getDate();
       for (let i = 1; i <= daysInMonth; i++) {
         labels.push(`${i}日`);
-        const dayTxs = filteredReportTransactions.filter(t => new Date(t.id).getDate() === i);
+        const dayTxs = filteredReportTransactions.filter(t => new Date(t.date.replace(/\//g, '-')).getDate() === i);
         incomeData.push(dayTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
         expenseData.push(dayTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
       }
@@ -451,7 +451,7 @@ export default function Home() {
       for (let i = 0; i < 12; i++) {
         labels.push(`${i + 1}月`);
         const monthTxs = transactions.filter(t => {
-          const d = new Date(t.id);
+          const d = new Date(t.date.replace(/\//g, '-'));
           return d.getFullYear() === reportDate.getFullYear() && d.getMonth() === i;
         });
         incomeData.push(monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
@@ -701,13 +701,20 @@ export default function Home() {
   const handleSaveAccount = () => {
     if (!accForm || !accForm.name) return;
     if (accForm.id) {
-      setAccounts(prev => prev.map(a => a.id === accForm.id ? { ...a, name: accForm.name, type: accForm.type, number: accForm.number, balance: accForm.balance, icon: accForm.icon } : a));
+      setAccounts(prev => prev.map(a => {
+        if (a.id !== accForm.id) return a;
+        const oldInitial = a.initialBalance ?? a.balance;
+        const newInitial = accForm.balance;
+        const balanceDelta = newInitial - oldInitial;
+        return { ...a, name: accForm.name, type: accForm.type, number: accForm.number, initialBalance: newInitial, balance: a.balance + balanceDelta, icon: accForm.icon };
+      }));
     } else {
       const newAcc: Account = {
         id: "acc_" + Date.now(),
         name: accForm.name,
         type: accForm.type,
         number: accForm.number,
+        initialBalance: accForm.balance,
         balance: accForm.balance,
         icon: accForm.icon || "🏦"
       };
@@ -1143,7 +1150,7 @@ export default function Home() {
                       </div>
                       <div style={{ flex: 1 }}>
                         <p style={{ fontWeight: '700', fontSize: '1.1rem' }}>{acc.name}</p>
-                        <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>初始資產：$0</p>
+                        <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>初始資產：${(acc.initialBalance ?? acc.balance).toLocaleString()}</p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <p style={{ fontWeight: '700', fontSize: '1.1rem' }}>${hideBalance ? '***' : acc.balance.toLocaleString()}</p>
@@ -1179,7 +1186,7 @@ export default function Home() {
 
         // 自訂時間範圍的交易
         const customFiltered = transactions.filter(t => {
-          const d = t.date;
+          const d = t.date.replace(/\//g, '-');
           return d >= customStart && d <= customEnd;
         });
 
@@ -1191,7 +1198,7 @@ export default function Home() {
           const d = new Date(); d.setMonth(d.getMonth() - i);
           const y = d.getFullYear(); const m = d.getMonth();
           predMonths.push(`${d.getMonth() + 1}月`);
-          const txs = transactions.filter(t => { const td = new Date(t.id); return td.getFullYear() === y && td.getMonth() === m; });
+          const txs = transactions.filter(t => { const td = new Date(t.date.replace(/\//g, '-')); return td.getFullYear() === y && td.getMonth() === m; });
           predExpense.push(txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
           predIncome.push(txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
         }
@@ -1679,14 +1686,14 @@ export default function Home() {
             detailTitle = `${year}年${month}月${day}日 明細`;
             detailIcon = "📅";
             detailTransactions = filteredReportTransactions.filter(t => {
-              const txDate = new Date(t.id);
+              const txDate = new Date(t.date.replace(/\//g, '-'));
               return txDate.getFullYear() === year && txDate.getMonth() + 1 === month && txDate.getDate() === day;
             });
           } else { // Monthly drilldown (YYYY-MM)
             detailTitle = `${year}年${month}月 明細`;
             detailIcon = "🗓️";
             detailTransactions = transactions.filter(t => {
-              const txDate = new Date(t.id);
+              const txDate = new Date(t.date.replace(/\//g, '-'));
               return txDate.getFullYear() === year && txDate.getMonth() + 1 === month;
             });
           }
@@ -1854,7 +1861,7 @@ export default function Home() {
                     <span>{acc.name}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => setAccForm({ ...acc, show: true, icon: acc.icon || "🏦" })} style={{ color: '#007aff', fontWeight: '600', border: 'none', background: 'none' }}>編輯</button>
+                    <button onClick={() => setAccForm({ ...acc, show: true, balance: acc.initialBalance ?? acc.balance, icon: acc.icon || "🏦" })} style={{ color: '#007aff', fontWeight: '600', border: 'none', background: 'none' }}>編輯</button>
                     <button onClick={() => handleDeleteAccount(acc.id)} style={{ color: '#ff453a', fontWeight: '600', border: 'none', background: 'none' }}>刪除</button>
                   </div>
                 </div>
