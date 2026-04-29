@@ -109,8 +109,21 @@ export default function Home() {
     }
     if (savedAccounts) {
       const parsed: Account[] = JSON.parse(savedAccounts);
-      // 舊資料沒有 initialBalance 時，以當前餘額作為初始金額（一次性遷移）
-      const migrated = parsed.map(a => a.initialBalance !== undefined ? a : { ...a, initialBalance: a.balance });
+      // 舊資料沒有 initialBalance 時，逆推交易紀錄還原真正的初始金額
+      const txData: Transaction[] = savedTransactions ? JSON.parse(savedTransactions) : [];
+      const migrated = parsed.map(a => {
+        if (a.initialBalance !== undefined) return a;
+        let txEffect = 0;
+        txData.forEach(t => {
+          if (t.type === 'income' && t.accountId === a.id) txEffect += t.amount;
+          else if (t.type === 'expense' && t.accountId === a.id) txEffect -= t.amount;
+          else if (t.type === 'transfer') {
+            if (t.accountId === a.id) txEffect -= (t.amount + (t.fee || 0));
+            if (t.toAccountId === a.id) txEffect += t.amount;
+          }
+        });
+        return { ...a, initialBalance: a.balance - txEffect };
+      });
       setAccounts(migrated);
       if (migrated.length > 0) setSelectedAccountId(migrated[0].id);
     } else {
@@ -195,16 +208,6 @@ export default function Home() {
     if (hasChanges) {
       setTransactions(prev => [...newTxs, ...prev]);
       setRecurringTemplates(updatedTemplates);
-      // 同步更新對應的帳戶餘額
-      setAccounts(prev => prev.map(a => {
-        let diff = 0;
-        newTxs.forEach(tx => {
-          if (tx.accountId === a.id) {
-            diff += (tx.type === 'income' ? tx.amount : -tx.amount);
-          }
-        });
-        return diff !== 0 ? { ...a, balance: a.balance + diff } : a;
-      }));
     }
   }, [isMounted, recurringTemplates]);
 
@@ -214,7 +217,9 @@ export default function Home() {
     const uid = getCurrentUserId();
     localStorage.setItem(`qm_${uid}_transactions_v3`, JSON.stringify(transactions));
     localStorage.setItem(`qm_${uid}_categories`, JSON.stringify(categories));
-    localStorage.setItem(`qm_${uid}_accounts`, JSON.stringify(accounts));
+    // 儲存時同步計算後的目前餘額
+    const accountsToSave = accounts.map(a => ({ ...a, balance: computedBalances[a.id] ?? a.balance }));
+    localStorage.setItem(`qm_${uid}_accounts`, JSON.stringify(accountsToSave));
     localStorage.setItem(`qm_${uid}_recurring`, JSON.stringify(recurringTemplates));
   }, [transactions, categories, accounts, recurringTemplates, isMounted]);
 
@@ -369,6 +374,24 @@ export default function Home() {
   const selectedAccount = useMemo(() =>
     accounts.find(a => a.id === selectedAccountId) || accounts[0],
     [accounts, selectedAccountId]);
+
+  // 目前金額 = 初始金額 + 所有交易效果（永遠從 initialBalance 動態計算，不使用 running total）
+  const computedBalances = useMemo(() => {
+    const map: Record<string, number> = {};
+    accounts.forEach(a => { map[a.id] = a.initialBalance ?? a.balance; });
+    transactions.forEach(t => {
+      if (t.type === 'income') {
+        if (map[t.accountId] !== undefined) map[t.accountId] += t.amount;
+      } else if (t.type === 'expense') {
+        if (map[t.accountId] !== undefined) map[t.accountId] -= t.amount;
+      } else if (t.type === 'transfer') {
+        const fee = t.fee || 0;
+        if (map[t.accountId] !== undefined) map[t.accountId] -= (t.amount + fee);
+        if (t.toAccountId && map[t.toAccountId] !== undefined) map[t.toAccountId] += t.amount;
+      }
+    });
+    return map;
+  }, [accounts, transactions]);
 
   // Helper for report date string
   const reportDateStr = useMemo(() => {
@@ -575,15 +598,6 @@ export default function Home() {
         note: txNote
       };
       setTransactions(prev => prev.map(t => t.id === editingTx.id ? updatedTx : t));
-
-      // 餘額修正邏輯 (簡化版：僅針對當前選中帳戶)
-      setAccounts(prev => prev.map(a => {
-        if (a.id === selectedAccountId) {
-          const diff = editingTx.type === 'income' ? numAmount - editingTx.amount : editingTx.amount - numAmount;
-          return { ...a, balance: a.balance + diff };
-        }
-        return a;
-      }));
       setEditingTx(null);
     } else {
       // 新增模式
@@ -602,13 +616,7 @@ export default function Home() {
           note: txNote,
           status: '已完成'
         };
-
         setTransactions(prev => [newTx, ...prev]);
-        setAccounts(prev => prev.map(a => {
-          if (a.id === selectedAccountId) return { ...a, balance: a.balance - numAmount - fee };
-          if (a.id === transferToAccountId) return { ...a, balance: a.balance + numAmount };
-          return a;
-        }));
       } else {
         const newTx: Transaction = {
           id: now.getTime(),
@@ -621,16 +629,8 @@ export default function Home() {
           note: txNote,
           status: '已完成'
         };
-
         setTransactions(prev => [newTx, ...prev]);
-        setAccounts(prev => prev.map(a => {
-          if (a.id === selectedAccountId) {
-            return { ...a, balance: activeType === 'income' ? a.balance + numAmount : a.balance - numAmount };
-          }
-          return a;
-        }));
       }
-
     }
 
     setAmount("0");
@@ -642,20 +642,6 @@ export default function Home() {
 
   const handleDeleteTransaction = (txToDelete: Transaction) => {
     if (!window.confirm("確定要刪除這筆紀錄嗎？")) return;
-
-    setAccounts(prev => prev.map(a => {
-      if (txToDelete.type === 'transfer') {
-        const fee = txToDelete.fee || 0;
-        if (a.id === txToDelete.accountId) return { ...a, balance: a.balance + txToDelete.amount + fee };
-        if (a.id === txToDelete.toAccountId) return { ...a, balance: a.balance - txToDelete.amount };
-      } else {
-        if (a.id === txToDelete.accountId) {
-          return { ...a, balance: txToDelete.type === 'income' ? a.balance - txToDelete.amount : a.balance + txToDelete.amount };
-        }
-      }
-      return a;
-    }));
-
     setTransactions(prev => prev.filter(t => t.id !== txToDelete.id));
     if (editingTx?.id === txToDelete.id) {
       setEditingTx(null);
@@ -703,13 +689,9 @@ export default function Home() {
   const handleSaveAccount = () => {
     if (!accForm || !accForm.name) return;
     if (accForm.id) {
-      setAccounts(prev => prev.map(a => {
-        if (a.id !== accForm.id) return a;
-        const oldInitial = a.initialBalance ?? a.balance;
-        const newInitial = accForm.balance;
-        const balanceDelta = newInitial - oldInitial;
-        return { ...a, name: accForm.name, type: accForm.type, number: accForm.number, initialBalance: newInitial, balance: a.balance + balanceDelta, icon: accForm.icon };
-      }));
+      setAccounts(prev => prev.map(a =>
+        a.id !== accForm.id ? a : { ...a, name: accForm.name, type: accForm.type, number: accForm.number, initialBalance: accForm.balance, icon: accForm.icon }
+      ));
     } else {
       const newAcc: Account = {
         id: "acc_" + Date.now(),
@@ -766,7 +748,7 @@ export default function Home() {
                   <p className="summary-label" style={{ marginBottom: '2px', fontSize: '0.8rem' }}>{selectedAccount.name} 餘額</p>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
                     <span style={{ fontSize: '0.8rem', color: '#8e8e93' }}>TWD</span>
-                    <p className="summary-amount" style={{ fontSize: '1.6rem' }}>${selectedAccount.balance.toLocaleString()}</p>
+                    <p className="summary-amount" style={{ fontSize: '1.6rem' }}>${(computedBalances[selectedAccount?.id] ?? 0).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -1024,7 +1006,7 @@ export default function Home() {
                   <div>
                     <p style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '1.5rem' }}>帳戶餘額</p>
                     <p style={{ fontSize: '0.9rem', fontWeight: '700', color: '#000' }}>TWD</p>
-                    <p style={{ fontSize: '2.5rem', fontWeight: '800' }}>{acc.balance.toLocaleString()}</p>
+                    <p style={{ fontSize: '2.5rem', fontWeight: '800' }}>{(computedBalances[acc.id] ?? acc.balance).toLocaleString()}</p>
                   </div>
                   <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <div>
@@ -1102,8 +1084,8 @@ export default function Home() {
           );
         }
 
-        const totalAssets = accounts.reduce((s, a) => s + (a.balance > 0 ? a.balance : 0), 0);
-        const totalLiabilities = accounts.reduce((s, a) => s + (a.balance < 0 ? Math.abs(a.balance) : 0), 0);
+        const totalAssets = accounts.reduce((s, a) => { const b = computedBalances[a.id] ?? a.balance; return s + (b > 0 ? b : 0); }, 0);
+        const totalLiabilities = accounts.reduce((s, a) => { const b = computedBalances[a.id] ?? a.balance; return s + (b < 0 ? Math.abs(b) : 0); }, 0);
         const netAssets = totalAssets - totalLiabilities;
         const types = Array.from(new Set(accounts.map(a => a.type)));
 
@@ -1143,7 +1125,7 @@ export default function Home() {
                 <div key={type} style={{ marginBottom: '10px' }}>
                   <div style={{ padding: '10px 1.2rem', display: 'flex', justifyContent: 'space-between', background: '#fff', borderBottom: '1px solid #f2f2f7' }}>
                     <span style={{ color: '#8e8e93', fontSize: '0.9rem' }}>{type === 'CASH' ? '現金' : type === 'SAVINGS' ? '銀行' : type}</span>
-                    <span style={{ color: '#007aff', fontSize: '0.9rem', fontWeight: '600' }}>TWD {accounts.filter(a => a.type === type).reduce((s, a) => s + a.balance, 0).toLocaleString()}</span>
+                    <span style={{ color: '#007aff', fontSize: '0.9rem', fontWeight: '600' }}>TWD {accounts.filter(a => a.type === type).reduce((s, a) => s + (computedBalances[a.id] ?? a.balance), 0).toLocaleString()}</span>
                   </div>
                   {accounts.filter(a => a.type === type).map(acc => (
                     <div key={acc.id} onClick={() => setAccountDetailId(acc.id)} style={{ background: '#fff', padding: '12px 1.2rem', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid #f2f2f7', cursor: 'pointer' }}>
@@ -1155,7 +1137,7 @@ export default function Home() {
                         <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>初始資產：${(acc.initialBalance ?? acc.balance).toLocaleString()}</p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontWeight: '700', fontSize: '1.1rem' }}>${hideBalance ? '***' : acc.balance.toLocaleString()}</p>
+                        <p style={{ fontWeight: '700', fontSize: '1.1rem' }}>${hideBalance ? '***' : (computedBalances[acc.id] ?? acc.balance).toLocaleString()}</p>
                         <p style={{ fontSize: '0.75rem', color: '#8e8e93' }}>匯率 : 1:1</p>
                       </div>
                     </div>
