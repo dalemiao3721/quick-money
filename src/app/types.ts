@@ -39,6 +39,7 @@ export const INITIAL_ACCOUNTS: Account[] = [
         type: "SAVINGS",
         number: "223012419",
         balance: 50000,
+        initialBalance: 50000,
         holderName: "MIAO MENG TA",
         icon: "🏦"
     },
@@ -48,6 +49,7 @@ export const INITIAL_ACCOUNTS: Account[] = [
         type: "CASH",
         number: "----",
         balance: 5000,
+        initialBalance: 5000,
         icon: "💵"
     }
 ];

@@ -109,8 +109,10 @@ export default function Home() {
     }
     if (savedAccounts) {
       const parsed: Account[] = JSON.parse(savedAccounts);
-      setAccounts(parsed);
-      if (parsed.length > 0) setSelectedAccountId(parsed[0].id);
+      // 舊資料沒有 initialBalance 時，以當前餘額作為初始金額（一次性遷移）
+      const migrated = parsed.map(a => a.initialBalance !== undefined ? a : { ...a, initialBalance: a.balance });
+      setAccounts(migrated);
+      if (migrated.length > 0) setSelectedAccountId(migrated[0].id);
     } else {
       // 使用預設帳戶時，同步設定 selectedAccountId
       setSelectedAccountId(INITIAL_ACCOUNTS[0]?.id || "");
