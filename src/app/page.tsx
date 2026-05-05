@@ -415,15 +415,15 @@ export default function Home() {
     return `${reportDate.getFullYear()} 年 ${reportDate.getMonth() + 1} 月`;
   }, [reportDate, reportPeriod]);
 
-  // Filtered transactions for report
+  // Filtered transactions for report (use string split to avoid new Date() per tx)
   const filteredReportTransactions = useMemo(() => {
+    const targetYear = reportDate.getFullYear();
+    const targetMonth = reportDate.getMonth() + 1; // 1-based
     return transactions.filter(t => {
-      const d = new Date(t.date.replace(/\//g, '-'));
-      const sameYear = d.getFullYear() === reportDate.getFullYear();
-      const sameMonth = d.getMonth() === reportDate.getMonth();
-
-      if (reportPeriod === 'year') return sameYear;
-      return sameYear && sameMonth;
+      const parts = t.date.replace(/\//g, '-').split('-');
+      if (parseInt(parts[0], 10) !== targetYear) return false;
+      if (reportPeriod === 'year') return true;
+      return parseInt(parts[1], 10) === targetMonth;
     });
   }, [transactions, reportDate, reportPeriod]);
 
@@ -524,6 +524,111 @@ export default function Home() {
       }]
     };
   }, [filteredReportTransactions, transactions, reportDate, reportPeriod, reportMainType]);
+
+  // 預測分析：最近 6 個月收支（從 render 移出，避免每次 render 重算）
+  const predictionData = useMemo(() => {
+    const monthIncome: number[] = [];
+    const monthExpense: number[] = [];
+    const labels: string[] = [];
+    // 預先以 "YYYY-MM" 分組
+    const byMonth: Record<string, { income: number; expense: number }> = {};
+    transactions.forEach(t => {
+      const d = t.date.replace(/\//g, '-');
+      const key = d.slice(0, 7); // "YYYY-MM"
+      if (!byMonth[key]) byMonth[key] = { income: 0, expense: 0 };
+      if (t.type === 'income') byMonth[key].income += t.amount;
+      else if (t.type === 'expense') byMonth[key].expense += t.amount;
+    });
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      labels.push(`${d.getMonth() + 1}月`);
+      monthExpense.push(byMonth[key]?.expense || 0);
+      monthIncome.push(byMonth[key]?.income || 0);
+    }
+    const linReg = (data: number[]) => {
+      const n = data.length;
+      if (n < 2) return { predict: (x: number) => data[0] || 0 };
+      const sumX = n * (n - 1) / 2;
+      const sumY = data.reduce((s, v) => s + v, 0);
+      const sumXY = data.reduce((s, v, i) => s + i * v, 0);
+      const sumXX = data.reduce((s, _, i) => s + i * i, 0);
+      const denom = n * sumXX - sumX * sumX;
+      const slope = denom ? (n * sumXY - sumX * sumY) / denom : 0;
+      const intercept = (sumY - slope * sumX) / n;
+      return { predict: (x: number) => Math.max(0, Math.round(slope * x + intercept)) };
+    };
+    const expReg = linReg(monthExpense);
+    const incReg = linReg(monthIncome);
+    const futureLabels = [1, 2, 3].map(i => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + i); return `${d.getMonth() + 1}月(預)`; });
+    return {
+      predMonths: labels,
+      predExpense: monthExpense,
+      predIncome: monthIncome,
+      futureLabels,
+      futureExpense: [1, 2, 3].map(i => expReg.predict(6 + i - 1)),
+      futureIncome: [1, 2, 3].map(i => incReg.predict(6 + i - 1)),
+    };
+  }, [transactions]);
+
+  // 自訂範圍篩選
+  const customFiltered = useMemo(() =>
+    transactions.filter(t => {
+      const d = t.date.replace(/\//g, '-');
+      return d >= customStart && d <= customEnd;
+    }),
+    [transactions, customStart, customEnd]);
+
+  // 分類消費排名
+  const categoryRankingData = useMemo(() => {
+    const rankType = reportMainType === 'balance' ? 'expense' : (reportMainType as 'expense' | 'income');
+    const rankSource = reportView === 'advanced' && advancedSubView === 'custom' ? customFiltered : filteredReportTransactions;
+    // 先建立 categoryId → amount map
+    const amountMap: Record<string, number> = {};
+    rankSource.forEach(t => {
+      if (t.type === rankType) amountMap[t.categoryId] = (amountMap[t.categoryId] || 0) + t.amount;
+    });
+    const ranking = categories
+      .filter(c => c.type === rankType && (amountMap[c.id] || 0) > 0)
+      .map(c => ({ ...c, total: amountMap[c.id] || 0 }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, rankingTopN);
+    return {
+      ranking,
+      max: ranking[0]?.total || 1,
+      grandTotal: ranking.reduce((s, c) => s + c.total, 0),
+    };
+  }, [filteredReportTransactions, customFiltered, categories, reportMainType, reportView, advancedSubView, rankingTopN]);
+
+  // 預算：各分類已花金額 map（expense only，for budget view）
+  const budgetSpentMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredReportTransactions.forEach(t => {
+      if (t.type === 'expense') map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
+    });
+    return map;
+  }, [filteredReportTransactions]);
+
+  // 報表分類列表：依 reportMainType 分組的金額 map
+  const reportCategoryAmountMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    const type = reportMainType === 'balance' ? 'expense' : reportMainType;
+    filteredReportTransactions.forEach(t => {
+      if (t.type === type) map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
+    });
+    return map;
+  }, [filteredReportTransactions, reportMainType]);
+
+  // 報表 currentSum
+  const reportCurrentSum = useMemo(() => {
+    if (reportMainType !== 'balance') return null;
+    let income = 0; let expense = 0;
+    filteredReportTransactions.forEach(t => {
+      if (t.type === 'income') income += t.amount;
+      else if (t.type === 'expense') expense += t.amount;
+    });
+    return income - expense;
+  }, [filteredReportTransactions, reportMainType]);
 
   const handleExportCSV = useCallback(() => {
     try {
@@ -1183,60 +1288,10 @@ export default function Home() {
           </div>
         );
 
-      case 'reports':
-        // 線性回歸工具函式
-        const linReg = (data: number[]) => {
-          const n = data.length;
-          if (n < 2) return { predict: (x: number) => data[0] || 0 };
-          const sumX = n * (n - 1) / 2;
-          const sumY = data.reduce((s, v) => s + v, 0);
-          const sumXY = data.reduce((s, v, i) => s + i * v, 0);
-          const sumXX = data.reduce((s, _, i) => s + i * i, 0);
-          const denom = n * sumXX - sumX * sumX;
-          const slope = denom ? (n * sumXY - sumX * sumY) / denom : 0;
-          const intercept = (sumY - slope * sumX) / n;
-          return { predict: (x: number) => Math.max(0, Math.round(slope * x + intercept)) };
-        };
-
-        // 自訂時間範圍的交易
-        const customFiltered = transactions.filter(t => {
-          const d = t.date.replace(/\//g, '-');
-          return d >= customStart && d <= customEnd;
-        });
-
-        // 預測資料：取最近 6 個月的每月收支
-        const predMonths: string[] = [];
-        const predExpense: number[] = [];
-        const predIncome: number[] = [];
-        for (let i = 5; i >= 0; i--) {
-          const d = new Date(); d.setMonth(d.getMonth() - i);
-          const y = d.getFullYear(); const m = d.getMonth();
-          predMonths.push(`${d.getMonth() + 1}月`);
-          const txs = transactions.filter(t => { const td = new Date(t.date.replace(/\//g, '-')); return td.getFullYear() === y && td.getMonth() === m; });
-          predExpense.push(txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
-          predIncome.push(txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
-        }
-        const expReg = linReg(predExpense);
-        const incReg = linReg(predIncome);
-        const futureLabels = [1, 2, 3].map(i => { const d = new Date(); d.setMonth(d.getMonth() + i); return `${d.getMonth() + 1}月(預)`; });
-        const futureExpense = [1, 2, 3].map(i => expReg.predict(6 + i - 1));
-        const futureIncome = [1, 2, 3].map(i => incReg.predict(6 + i - 1));
-
-        // 分類消費排名
-        const rankType = reportMainType === 'balance' ? 'expense' : reportMainType;
-        const rankSource = reportView === 'advanced' && advancedSubView === 'custom' ? customFiltered : filteredReportTransactions;
-        const categoryRanking = categories
-          .filter(c => c.type === rankType)
-          .map(c => ({ ...c, total: rankSource.filter(t => t.categoryId === c.id && t.type === rankType).reduce((s, t) => s + t.amount, 0) }))
-          .filter(c => c.total > 0)
-          .sort((a, b) => b.total - a.total)
-          .slice(0, rankingTopN);
-        const rankingMax = categoryRanking[0]?.total || 1;
-        const rankingGrandTotal = categoryRanking.reduce((s, c) => s + c.total, 0);
-
-        const currentSum = reportMainType === 'balance'
-          ? filteredReportTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) - filteredReportTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-          : doughnutData.total;
+      case 'reports': {
+        const { predMonths, predExpense, predIncome, futureLabels, futureExpense, futureIncome } = predictionData;
+        const { ranking: categoryRanking, max: rankingMax, grandTotal: rankingGrandTotal } = categoryRankingData;
+        const currentSum = reportMainType === 'balance' ? (reportCurrentSum ?? 0) : doughnutData.total;
 
         return (
           <div className="bank-view-container" style={{ background: '#fff' }}>
@@ -1477,9 +1532,7 @@ export default function Home() {
                     }
 
                     const totalBudget = budgetedCats.reduce((s, c) => s + (c.budget || 0), 0);
-                    const totalSpent = budgetedCats.reduce((s, c) => {
-                      return s + filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((sum, t) => sum + t.amount, 0);
-                    }, 0);
+                    const totalSpent = budgetedCats.reduce((s, c) => s + (budgetSpentMap[c.id] || 0), 0);
                     const percent = Math.min(100, Math.round((totalSpent / totalBudget) * 100)) || 0;
 
                     return (
@@ -1500,7 +1553,7 @@ export default function Home() {
                         <h4 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '1rem', color: '#1c1c1e' }}>分類進度</h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                           {budgetedCats.map(c => {
-                            const spent = filteredReportTransactions.filter(t => t.categoryId === c.id).reduce((sum, t) => sum + t.amount, 0);
+                            const spent = budgetSpentMap[c.id] || 0;
                             const bPercent = Math.round((spent / (c.budget || 1)) * 100);
                             const remaining = (c.budget || 0) - spent;
                             return (
@@ -1615,7 +1668,7 @@ export default function Home() {
                         })
                       ) : (
                         categories.filter(c => c.type === (reportMainType === 'balance' ? 'expense' : reportMainType as 'expense' | 'income')).map(c => {
-                          const amount = filteredReportTransactions.filter(t => t.categoryId === c.id && t.type !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                          const amount = reportCategoryAmountMap[c.id] || 0;
                           if (amount === 0) return null;
                           return (
                             <div key={c.id} className="report-item" onClick={() => { setReportDetailId(c.id); setCurrentScreen('report_detail'); }} style={{ cursor: 'pointer' }}>
@@ -1673,6 +1726,7 @@ export default function Home() {
             )}
           </div>
         );
+      }
 
       case 'report_detail':
         if (!reportDetailId) return null;
