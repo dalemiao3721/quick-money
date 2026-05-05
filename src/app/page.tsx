@@ -17,6 +17,31 @@ import {
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title);
 
+// Chart options 定義在 component 外，確保 reference 穩定，避免每次 render 重繪圖表
+const DOUGHNUT_OPTIONS = {
+  maintainAspectRatio: false,
+  cutout: '75%',
+  plugins: { legend: { display: false }, tooltip: { enabled: true } },
+} as const;
+
+const BAR_OPTIONS = {
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#f2f2f7' } } },
+} as const;
+
+const LINE_OPTIONS = {
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { position: 'bottom' as const, labels: { font: { size: 12 } } },
+    tooltip: { callbacks: { label: (ctx: any) => `$${(ctx.raw as number)?.toLocaleString()}` } },
+  },
+  scales: {
+    x: { grid: { display: false } },
+    y: { beginAtZero: true, grid: { color: '#f2f2f7' }, ticks: { callback: (v: any) => `$${Number(v).toLocaleString()}` } },
+  },
+};
+
 type AppScreen = 'main' | 'accounts' | 'reports' | 'maintenance' | 'tx_detail' | 'report_detail';
 
 const EXPENSE_ICONS = [
@@ -570,6 +595,21 @@ export default function Home() {
       futureIncome: [1, 2, 3].map(i => incReg.predict(6 + i - 1)),
     };
   }, [transactions]);
+
+  // Line chart data — memoized 避免每次 render 產生新 object reference
+  const lineChartData = useMemo(() => {
+    const { predMonths, predExpense, predIncome, futureLabels, futureExpense, futureIncome } = predictionData;
+    const actual = reportMainType === 'expense' ? predExpense : predIncome;
+    const future = reportMainType === 'expense' ? futureExpense : futureIncome;
+    const color = reportMainType === 'expense' ? '#ff453a' : '#007aff';
+    return {
+      labels: [...predMonths, ...futureLabels],
+      datasets: [
+        { label: '實際', data: [...actual, ...Array(3).fill(null)], borderColor: color, backgroundColor: `${color}22`, borderWidth: 2.5, pointRadius: 4, tension: 0.3, fill: true },
+        { label: '預測', data: [...Array(5).fill(null), actual[5], ...future], borderColor: '#5856d6', backgroundColor: '#5856d622', borderWidth: 2.5, pointRadius: 4, borderDash: [6, 4], tension: 0.3, fill: false },
+      ],
+    };
+  }, [predictionData, reportMainType]);
 
   // 自訂範圍篩選
   const customFiltered = useMemo(() =>
@@ -1362,32 +1402,7 @@ export default function Home() {
                     </div>
                     <div style={{ padding: '1rem', fontSize: '0.8rem', color: '#8e8e93' }}>基於最近 6 個月線性回歸，預測未來 3 個月趨勢</div>
                     <div style={{ height: '220px', padding: '0 1rem' }}>
-                      <Line
-                        data={{
-                          labels: [...predMonths, ...futureLabels],
-                          datasets: [
-                            {
-                              label: '實際',
-                              data: [...(reportMainType === 'expense' ? predExpense : predIncome), ...Array(3).fill(null)],
-                              borderColor: reportMainType === 'expense' ? '#ff453a' : '#007aff',
-                              backgroundColor: reportMainType === 'expense' ? '#ff453a22' : '#007aff22',
-                              borderWidth: 2.5, pointRadius: 4, tension: 0.3, fill: true,
-                            },
-                            {
-                              label: '預測',
-                              data: [...Array(5).fill(null), (reportMainType === 'expense' ? predExpense : predIncome)[5], ...(reportMainType === 'expense' ? futureExpense : futureIncome)],
-                              borderColor: '#5856d6',
-                              backgroundColor: '#5856d622',
-                              borderWidth: 2.5, pointRadius: 4, borderDash: [6, 4], tension: 0.3, fill: false,
-                            },
-                          ],
-                        }}
-                        options={{
-                          maintainAspectRatio: false,
-                          plugins: { legend: { position: 'bottom', labels: { font: { size: 12 } } }, tooltip: { callbacks: { label: ctx => `$${(ctx.raw as number)?.toLocaleString()}` } } },
-                          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#f2f2f7' }, ticks: { callback: v => `$${Number(v).toLocaleString()}` } } },
-                        }}
-                      />
+                      <Line data={lineChartData} options={LINE_OPTIONS} />
                     </div>
                     {/* 預測明細 */}
                     <div style={{ margin: '1rem', background: '#f8f7ff', borderRadius: '16px', padding: '1rem' }}>
@@ -1654,14 +1669,7 @@ export default function Home() {
                 {reportView === 'category' ? (
                   <>
                     <div className="chart-center-container">
-                      <Doughnut
-                        data={doughnutData}
-                        options={{
-                          maintainAspectRatio: false,
-                          cutout: '75%',
-                          plugins: { legend: { display: false }, tooltip: { enabled: true } }
-                        }}
-                      />
+                      <Doughnut data={doughnutData} options={DOUGHNUT_OPTIONS} />
                       <div className="chart-center-info">
                         <p className="center-label">{reportMainType === 'expense' ? '總支出' : reportMainType === 'income' ? '總收入' : '總轉帳'}</p>
                         <p className="center-amount">${doughnutData.total.toLocaleString()}</p>
@@ -1716,14 +1724,7 @@ export default function Home() {
                 ) : (
                   <>
                     <div className="chart-container">
-                      <Bar
-                        data={barData}
-                        options={{
-                          maintainAspectRatio: false,
-                          plugins: { legend: { display: false } },
-                          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#f2f2f7' } } }
-                        }}
-                      />
+                      <Bar data={barData} options={BAR_OPTIONS} />
                     </div>
                     <div className="report-list">
                       {barData.labels.map((label, idx) => {
