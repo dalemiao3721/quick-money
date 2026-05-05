@@ -163,17 +163,20 @@ export default function Home() {
         if (tpl.frequency === 'daily') {
           shouldGen = true;
         } else if (tpl.frequency === 'weekly') {
-          const targetDay = tpl.executionDay ?? cursorDate.getDay();
-          if (cursorDate.getDay() === targetDay) shouldGen = true;
+          // executionDay 未設定時跳過，避免每天都觸發
+          if (tpl.executionDay !== undefined && cursorDate.getDay() === tpl.executionDay) shouldGen = true;
         } else if (tpl.frequency === 'monthly') {
-          const targetDate = tpl.executionDay ?? cursorDate.getDate();
-          if (cursorDate.getDate() === targetDate) {
-            shouldGen = true;
-          } else if (targetDate > 28) {
-            // 處理小月沒有 29, 30, 31 號的情況 (退回該月最後一天)
-            const lastDayOfMonth = new Date(cursorDate.getFullYear(), cursorDate.getMonth() + 1, 0).getDate();
-            if (cursorDate.getDate() === lastDayOfMonth && targetDate > lastDayOfMonth) {
+          // executionDay 未設定時跳過，避免每天都觸發
+          if (tpl.executionDay !== undefined) {
+            const targetDate = tpl.executionDay;
+            if (cursorDate.getDate() === targetDate) {
               shouldGen = true;
+            } else if (targetDate > 28) {
+              // 處理小月沒有 29, 30, 31 號的情況 (退回該月最後一天)
+              const lastDayOfMonth = new Date(cursorDate.getFullYear(), cursorDate.getMonth() + 1, 0).getDate();
+              if (cursorDate.getDate() === lastDayOfMonth && targetDate > lastDayOfMonth) {
+                shouldGen = true;
+              }
             }
           }
         }
@@ -206,7 +209,20 @@ export default function Home() {
     });
 
     if (hasChanges) {
-      setTransactions(prev => [...newTxs, ...prev]);
+      // 立即寫入 localStorage，避免 save effect 在同一 render 用舊資料覆蓋
+      try {
+        const { getCurrentUserId } = require('./components/AppShell');
+        const uid = getCurrentUserId();
+        localStorage.setItem(`qm_${uid}_recurring`, JSON.stringify(updatedTemplates));
+      } catch { /* ignore */ }
+      setTransactions(prev => {
+        // 防重複：過濾掉已存在同日期同備註的定期交易
+        const existingKeys = new Set(
+          prev.filter(t => t.note?.startsWith('[定期]')).map(t => `${t.note}__${t.date}`)
+        );
+        const deduped = newTxs.filter(t => !existingKeys.has(`${t.note}__${t.date}`));
+        return deduped.length > 0 ? [...deduped, ...prev] : prev;
+      });
       setRecurringTemplates(updatedTemplates);
     }
   }, [isMounted, recurringTemplates]);
@@ -543,6 +559,8 @@ export default function Home() {
 
   const handleSaveRecurring = () => {
     if (!recurringForm || !recurringForm.label || !recurringForm.amount) return;
+    const freq = recurringForm.frequency || 'monthly';
+    if ((freq === 'weekly' || freq === 'monthly') && recurringForm.executionDay === undefined) return;
 
     // 將預設的上次生成日期設為昨天，這樣如果是設定今天執行，就會在自動生成邏輯中被檢查並觸發
     let defaultLastGenerated = new Date().toISOString().split('T')[0];
