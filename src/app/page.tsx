@@ -619,6 +619,37 @@ export default function Home() {
     return map;
   }, [filteredReportTransactions, reportMainType]);
 
+  // 自訂範圍摘要 (避免 render 裡重算)
+  const customFilteredSummary = useMemo(() => {
+    let income = 0; let expense = 0;
+    // 同時建立 categoryId → {income, expense} map
+    const catMap: Record<string, { income: number; expense: number }> = {};
+    customFiltered.forEach(t => {
+      if (t.type === 'income') income += t.amount;
+      else if (t.type === 'expense') expense += t.amount;
+      if (!catMap[t.categoryId]) catMap[t.categoryId] = { income: 0, expense: 0 };
+      if (t.type === 'income') catMap[t.categoryId].income += t.amount;
+      else if (t.type === 'expense') catMap[t.categoryId].expense += t.amount;
+    });
+    return { income, expense, balance: income - expense, catMap };
+  }, [customFiltered]);
+
+  // 轉帳：以帳戶分組的摘要 map
+  const transferByAccount = useMemo(() => {
+    const map: Record<string, { out: number; in: number; count: number }> = {};
+    filteredReportTransactions.forEach(t => {
+      if (t.type !== 'transfer') return;
+      if (!map[t.accountId]) map[t.accountId] = { out: 0, in: 0, count: 0 };
+      map[t.accountId].out += t.amount;
+      map[t.accountId].count += 1;
+      if (t.toAccountId) {
+        if (!map[t.toAccountId]) map[t.toAccountId] = { out: 0, in: 0, count: 0 };
+        map[t.toAccountId].in += t.amount;
+      }
+    });
+    return map;
+  }, [filteredReportTransactions]);
+
   // 報表 currentSum
   const reportCurrentSum = useMemo(() => {
     if (reportMainType !== 'balance') return null;
@@ -1456,34 +1487,30 @@ export default function Home() {
                       </div>
                     </div>
                     {/* 攝要數據 */}
-                    {(() => {
-                      const cIncome = customFiltered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-                      const cExpense = customFiltered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-                      const cBalance = cIncome - cExpense;
-                      return (
-                        <div style={{ display: 'flex', gap: '1px', background: '#e5e5ea', borderBottom: '8px solid #f2f2f7' }}>
-                          {[{ label: '收入', val: cIncome, color: '#007aff' }, { label: '支出', val: cExpense, color: '#ff453a' }, { label: '結餘', val: cBalance, color: cBalance >= 0 ? '#34c759' : '#ff453a' }].map(item => (
-                            <div key={item.label} style={{ flex: 1, padding: '14px 0', textAlign: 'center', background: '#fff' }}>
-                              <p style={{ fontSize: '0.72rem', color: '#8e8e93', marginBottom: '4px' }}>{item.label}</p>
-                              <p style={{ fontWeight: '800', fontSize: '1.1rem', color: item.color }}>${Math.abs(item.val).toLocaleString()}</p>
-                            </div>
-                          ))}
+                    <div style={{ display: 'flex', gap: '1px', background: '#e5e5ea', borderBottom: '8px solid #f2f2f7' }}>
+                      {[
+                        { label: '收入', val: customFilteredSummary.income, color: '#007aff' },
+                        { label: '支出', val: customFilteredSummary.expense, color: '#ff453a' },
+                        { label: '結餘', val: customFilteredSummary.balance, color: customFilteredSummary.balance >= 0 ? '#34c759' : '#ff453a' }
+                      ].map(item => (
+                        <div key={item.label} style={{ flex: 1, padding: '14px 0', textAlign: 'center', background: '#fff' }}>
+                          <p style={{ fontSize: '0.72rem', color: '#8e8e93', marginBottom: '4px' }}>{item.label}</p>
+                          <p style={{ fontWeight: '800', fontSize: '1.1rem', color: item.color }}>${Math.abs(item.val).toLocaleString()}</p>
                         </div>
-                      );
-                    })()}
+                      ))}
+                    </div>
                     {/* 分類詳細列表 */}
                     <div style={{ padding: '10px 1rem 0' }}>
-                      {['expense', 'income'].map(type => {
-                        const typedCats = categories.filter(c => c.type === type);
-                        const typedTotal = customFiltered.filter(t => t.type === type).reduce((s, t) => s + t.amount, 0);
+                      {(['expense', 'income'] as const).map(type => {
+                        const typedTotal = type === 'expense' ? customFilteredSummary.expense : customFilteredSummary.income;
                         if (typedTotal === 0) return null;
                         return (
                           <div key={type} style={{ marginBottom: '1.5rem' }}>
                             <p style={{ fontWeight: '700', fontSize: '0.88rem', color: type === 'expense' ? '#ff453a' : '#007aff', marginBottom: '8px', padding: '0 4px' }}>
                               {type === 'expense' ? '支出明細' : '收入明細'}
                             </p>
-                            {typedCats.map(c => {
-                              const amt = customFiltered.filter(t => t.categoryId === c.id && t.type === type).reduce((s, t) => s + t.amount, 0);
+                            {categories.filter(c => c.type === type).map(c => {
+                              const amt = customFilteredSummary.catMap[c.id]?.[type] || 0;
                               if (amt === 0) return null;
                               return (
                                 <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 4px', borderBottom: '1px solid #f2f2f7' }}>
@@ -1645,10 +1672,10 @@ export default function Home() {
                       {reportMainType === 'transfer' ? (
                         // 轉帳模式：以帳戶分組顯示
                         accounts.map(acc => {
-                          const txs = filteredReportTransactions.filter(t => t.type === 'transfer' && (t.accountId === acc.id || t.toAccountId === acc.id));
-                          if (txs.length === 0) return null;
-                          const transferred = txs.filter(t => t.accountId === acc.id).reduce((s, t) => s + t.amount, 0);
-                          const received = txs.filter(t => t.toAccountId === acc.id).reduce((s, t) => s + t.amount, 0);
+                          const summary = transferByAccount[acc.id];
+                          if (!summary || summary.count === 0) return null;
+                          const transferred = summary.out;
+                          const received = summary.in;
                           return (
                             <div key={acc.id} className="report-item">
                               <div className="report-item-color-bar" style={{ background: '#5856d6' }}></div>
@@ -1661,7 +1688,7 @@ export default function Home() {
                                 </div>
                               </div>
                               <div className="report-item-amount" style={{ color: '#5856d6' }}>
-                                {txs.length} 筆
+                                {summary.count} 筆
                               </div>
                             </div>
                           );
@@ -1753,17 +1780,14 @@ export default function Home() {
           if (day) { // Daily drilldown (YYYY-MM-DD)
             detailTitle = `${year}年${month}月${day}日 明細`;
             detailIcon = "📅";
-            detailTransactions = filteredReportTransactions.filter(t => {
-              const txDate = new Date(t.date.replace(/\//g, '-'));
-              return txDate.getFullYear() === year && txDate.getMonth() + 1 === month && txDate.getDate() === day;
-            });
+            const targetDay = String(day).padStart(2, '0');
+            const prefix = `${year}-${String(month).padStart(2, '0')}-${targetDay}`;
+            detailTransactions = filteredReportTransactions.filter(t => t.date.replace(/\//g, '-') === prefix);
           } else { // Monthly drilldown (YYYY-MM)
             detailTitle = `${year}年${month}月 明細`;
             detailIcon = "🗓️";
-            detailTransactions = transactions.filter(t => {
-              const txDate = new Date(t.date.replace(/\//g, '-'));
-              return txDate.getFullYear() === year && txDate.getMonth() + 1 === month;
-            });
+            const prefix = `${year}-${String(month).padStart(2, '0')}`;
+            detailTransactions = transactions.filter(t => t.date.replace(/\//g, '-').startsWith(prefix));
           }
           // For date drilldown, we show all types (income/expense)
         }
