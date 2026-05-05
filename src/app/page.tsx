@@ -197,7 +197,7 @@ export default function Home() {
             type: tpl.type,
             categoryId: tpl.categoryId,
             accountId: tpl.accountId,
-            date: tDate.replace(/-/g, '/'),
+            date: tDate,
             time: "08:00",
             note: `[定期] ${tpl.label}`,
             status: "已完成"
@@ -479,24 +479,36 @@ export default function Home() {
     const expenseData: number[] = [];
 
     if (reportPeriod === 'month') {
-      // Daily trend for specific month
+      // 預先以「日」分組，避免巢狀 filter
+      const dayIncome: number[] = new Array(32).fill(0);
+      const dayExpense: number[] = new Array(32).fill(0);
+      filteredReportTransactions.forEach(t => {
+        const day = parseInt(t.date.replace(/\//g, '-').split('-')[2], 10);
+        if (t.type === 'income') dayIncome[day] += t.amount;
+        else if (t.type === 'expense') dayExpense[day] += t.amount;
+      });
       const daysInMonth = new Date(reportDate.getFullYear(), reportDate.getMonth() + 1, 0).getDate();
       for (let i = 1; i <= daysInMonth; i++) {
         labels.push(`${i}日`);
-        const dayTxs = filteredReportTransactions.filter(t => new Date(t.date.replace(/\//g, '-')).getDate() === i);
-        incomeData.push(dayTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
-        expenseData.push(dayTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+        incomeData.push(dayIncome[i]);
+        expenseData.push(dayExpense[i]);
       }
     } else {
-      // Monthly trend for specific year
+      // 預先以「月」分組，避免巢狀 filter
+      const targetYear = reportDate.getFullYear();
+      const monthIncome: number[] = new Array(12).fill(0);
+      const monthExpense: number[] = new Array(12).fill(0);
+      transactions.forEach(t => {
+        const parts = t.date.replace(/\//g, '-').split('-');
+        if (parseInt(parts[0], 10) !== targetYear) return;
+        const m = parseInt(parts[1], 10) - 1;
+        if (t.type === 'income') monthIncome[m] += t.amount;
+        else if (t.type === 'expense') monthExpense[m] += t.amount;
+      });
       for (let i = 0; i < 12; i++) {
         labels.push(`${i + 1}月`);
-        const monthTxs = transactions.filter(t => {
-          const d = new Date(t.date.replace(/\//g, '-'));
-          return d.getFullYear() === reportDate.getFullYear() && d.getMonth() === i;
-        });
-        incomeData.push(monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
-        expenseData.push(monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+        incomeData.push(monthIncome[i]);
+        expenseData.push(monthExpense[i]);
       }
     }
 
@@ -932,17 +944,17 @@ export default function Home() {
                 <div style={{ marginTop: '1.5rem', paddingBottom: '2rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <h3 style={{ fontSize: '0.9rem', color: '#8e8e93', fontWeight: '700' }}>{txDate === new Date().toISOString().split('T')[0] ? '今日' : txDate} 紀錄</h3>
-                    <span style={{ fontSize: '0.75rem', color: '#007aff' }}>共 {transactions.filter(t => t.date === txDate).length} 筆</span>
+                    <span style={{ fontSize: '0.75rem', color: '#007aff' }}>共 {transactions.filter(t => t.date.replace(/\//g, '-') === txDate).length} 筆</span>
                   </div>
 
-                  {transactions.filter(t => t.date === txDate).length === 0 ? (
+                  {transactions.filter(t => t.date.replace(/\//g, '-') === txDate).length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '2rem 0', color: '#c7c7cc' }}>
                       <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍃</p>
                       <p style={{ fontSize: '0.85rem' }}>尚無記帳紀錄</p>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: '#f2f2f7', borderRadius: '16px', overflow: 'hidden' }}>
-                      {transactions.filter(t => t.date === txDate).map(t => {
+                      {transactions.filter(t => t.date.replace(/\//g, '-') === txDate).map(t => {
                         const cat = categories.find(c => c.id === t.categoryId);
                         const acc = accounts.find(a => a.id === t.accountId);
                         return (
