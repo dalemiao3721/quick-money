@@ -746,9 +746,15 @@ export default function Home() {
   }, [transactions, categories, accounts]);
 
   const handleSaveRecurring = () => {
-    if (!recurringForm || !recurringForm.label || !recurringForm.amount) return;
+    if (!recurringForm || !recurringForm.label || !recurringForm.amount) {
+      alert('請填寫名稱與金額');
+      return;
+    }
     const freq = recurringForm.frequency || 'monthly';
-    if ((freq === 'weekly' || freq === 'monthly') && recurringForm.executionDay === undefined) return;
+    if ((freq === 'weekly' || freq === 'monthly') && recurringForm.executionDay === undefined) {
+      alert(freq === 'weekly' ? '請選擇每週執行星期' : '請選擇每月執行日期');
+      return;
+    }
 
     // 將預設的上次生成日期設為昨天，這樣如果是設定今天執行，就會在自動生成邏輯中被檢查並觸發
     let defaultLastGenerated = new Date().toISOString().split('T')[0];
@@ -2526,7 +2532,7 @@ export default function Home() {
                   {['daily', 'weekly', 'monthly'].map(f => (
                     <button
                       key={f}
-                      onClick={() => setRecurringForm({ ...recurringForm, frequency: f as any, executionDay: undefined })}
+                      onClick={() => setRecurringForm({ ...recurringForm, frequency: f as any, ...(f !== recurringForm.frequency ? { executionDay: undefined } : {}) })}
                       style={{
                         flex: 1, padding: '8px', borderRadius: '10px', border: 'none', fontSize: '0.85rem',
                         background: recurringForm.frequency === f ? '#007aff' : '#fff',
