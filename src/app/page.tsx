@@ -746,7 +746,7 @@ export default function Home() {
   }, [transactions, categories, accounts]);
 
   const handleSaveRecurring = () => {
-    if (!recurringForm || !recurringForm.label || !recurringForm.amount) {
+    if (!recurringForm || !recurringForm.label || !((recurringForm.amount ?? 0) > 0)) {
       alert('請填寫名稱與金額');
       return;
     }
@@ -778,7 +778,19 @@ export default function Home() {
     };
 
     if (recurringForm.id) {
+      const oldTpl = recurringTemplates.find(p => p.id === recurringForm.id);
       setRecurringTemplates(prev => prev.map(p => p.id === tpl.id ? tpl : p));
+      // 同步更新今日已生成的定期交易，避免修改金額後今天的記錄仍是舊值
+      if (oldTpl && (oldTpl.amount !== tpl.amount || oldTpl.type !== tpl.type || oldTpl.categoryId !== tpl.categoryId || oldTpl.accountId !== tpl.accountId || oldTpl.label !== tpl.label)) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const oldNote = `[定期] ${oldTpl.label}`;
+        const newNote = `[定期] ${tpl.label}`;
+        setTransactions(prev => prev.map(tx =>
+          tx.note === oldNote && tx.date === todayStr
+            ? { ...tx, amount: tpl.amount, type: tpl.type, categoryId: tpl.categoryId, accountId: tpl.accountId, note: newNote }
+            : tx
+        ));
+      }
     } else {
       setRecurringTemplates(prev => [...prev, tpl]);
     }
