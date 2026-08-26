@@ -33,6 +33,19 @@ export default function AppShell({ children }: AppShellProps) {
 
     _triggerChangePinFn = () => setShowChangePinMode(true);
 
+    // Service Worker 更新時自動重新載入，確保使用者拿到最新版本
+    useEffect(() => {
+        if ('serviceWorker' in navigator) {
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    window.location.reload();
+                }
+            });
+        }
+    }, []);
+
     // 初始化：從 sessionStorage 恢復會話
     useEffect(() => {
         try {
