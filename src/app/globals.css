@@ -293,6 +293,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 5dvh 0;
   z-index: 1000;
   animation: fadeIn 0.3s ease-out;
 }
@@ -301,6 +302,8 @@ body {
   background: var(--card-bg);
   width: 90%;
   max-width: 400px;
+  max-height: 90dvh;
+  overflow-y: auto;
   padding: 2rem;
   border-radius: 32px;
   position: relative;
